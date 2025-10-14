@@ -1,0 +1,26 @@
+{
+  "name": "obsidian-open-in-terminal",
+  "version": "0.1.0",
+  "description": "Obsidian plugin to open the current vault in your terminal or launch Claude Code/Codex CLI/Gemini CLI.",
+  "author": "Chen",
+  "scripts": {
+    "dev": "rollup --config rollup.config.js --watch",
+    "build": "rollup --config rollup.config.js"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "terminal"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.24",
+    "obsidian": "latest",
+    "rollup": "^4.9.6",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}
