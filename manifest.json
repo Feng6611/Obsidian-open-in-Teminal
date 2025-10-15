@@ -3,8 +3,8 @@
   "name": "Open in Terminal",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "Open your vault in a new terminal window or launch Claude Code, Codex CLI, or Gemini CLI from Obsidian.",
+  "description": "Open your vault in a new terminal window or launch Claude Code, Codex CLI, or Gemini CLI directly from a terminal.",
   "author": "ChenFeng",
-  "authorUrl": "https://github.com/Feng6611/Obsidian-open-in-Teminal",
+  "authorUrl": "https://github.com/Feng6611",
   "isDesktopOnly": true
 }
