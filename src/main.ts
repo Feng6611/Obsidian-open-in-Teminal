@@ -2,6 +2,7 @@ import {
   App,
   FileSystemAdapter,
   Notice,
+  Platform,
   Plugin,
   PluginSettingTab,
   Setting
@@ -20,14 +21,19 @@ interface OpenInTerminalSettings {
 }
 
 const defaultTerminalApp = (): string => {
-  switch (process.platform) {
-    case "darwin":
-      return "Terminal";
-    case "win32":
-      return "cmd.exe";
-    default:
-      return "x-terminal-emulator";
+  if (!Platform.isDesktopApp) {
+    return "";
   }
+  if (Platform.isMacOS) {
+    return "Terminal";
+  }
+  if (Platform.isWin) {
+    return "cmd.exe";
+  }
+  if (Platform.isLinux) {
+    return "x-terminal-emulator";
+  }
+  return "";
 };
 
 const DEFAULT_SETTINGS: OpenInTerminalSettings = {
@@ -39,8 +45,6 @@ const DEFAULT_SETTINGS: OpenInTerminalSettings = {
 };
 
 const TEMP_SCRIPT_CLEANUP_DELAY_MS = 30_000;
-
-const platform = process.platform;
 
 const logger = {
   enabled: false,
@@ -86,6 +90,31 @@ const resolveCommandManager = (app: App): CommandManager | null => {
 const sanitizeTerminalApp = (value: string): string => value.trim();
 
 const escapeDoubleQuotes = (value: string): string => value.replace(/"/g, '\\"');
+
+const getPlatformSummary = (): string => {
+  if (Platform.isDesktopApp) {
+    if (Platform.isMacOS) {
+      return "desktop-macos";
+    }
+    if (Platform.isWin) {
+      return "desktop-windows";
+    }
+    if (Platform.isLinux) {
+      return "desktop-linux";
+    }
+    return "desktop-unknown";
+  }
+  if (Platform.isMobileApp) {
+    if (Platform.isIosApp) {
+      return "mobile-ios";
+    }
+    if (Platform.isAndroidApp) {
+      return "mobile-android";
+    }
+    return "mobile-unknown";
+  }
+  return "unknown";
+};
 
 const ensureTempScript = (content: string): { path: string; cleanup: () => void } => {
   const dir = mkdtempSync(join(tmpdir(), "open-in-terminal-"));
@@ -232,14 +261,16 @@ const buildLaunchCommand = (
   vaultPath: string,
   toolCommand?: string
 ): LaunchCommand | null => {
-  switch (platform) {
-    case "darwin":
-      return buildMacLaunch(terminalApp, vaultPath, toolCommand);
-    case "win32":
-      return buildWindowsLaunch(terminalApp, vaultPath, toolCommand);
-    default:
-      return buildUnixLaunch(terminalApp, toolCommand);
+  if (!Platform.isDesktopApp) {
+    return null;
   }
+  if (Platform.isMacOS) {
+    return buildMacLaunch(terminalApp, vaultPath, toolCommand);
+  }
+  if (Platform.isWin) {
+    return buildWindowsLaunch(terminalApp, vaultPath, toolCommand);
+  }
+  return buildUnixLaunch(terminalApp, toolCommand);
 };
 
 export default class OpenInTerminalPlugin extends Plugin {
@@ -318,7 +349,7 @@ export default class OpenInTerminalPlugin extends Plugin {
       toolCommand
     );
     logger.log("Compose launch command", {
-      platform,
+      platform: getPlatformSummary(),
       terminalApp: this.settings.terminalApp,
       toolCommand,
       vaultPath,

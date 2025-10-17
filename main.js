@@ -39,14 +39,19 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
 };
 
 const defaultTerminalApp = () => {
-    switch (process.platform) {
-        case "darwin":
-            return "Terminal";
-        case "win32":
-            return "cmd.exe";
-        default:
-            return "x-terminal-emulator";
+    if (!obsidian.Platform.isDesktopApp) {
+        return "";
     }
+    if (obsidian.Platform.isMacOS) {
+        return "Terminal";
+    }
+    if (obsidian.Platform.isWin) {
+        return "cmd.exe";
+    }
+    if (obsidian.Platform.isLinux) {
+        return "x-terminal-emulator";
+    }
+    return "";
 };
 const DEFAULT_SETTINGS = {
     terminalApp: defaultTerminalApp(),
@@ -56,7 +61,6 @@ const DEFAULT_SETTINGS = {
     enableLogging: false
 };
 const TEMP_SCRIPT_CLEANUP_DELAY_MS = 30000;
-const platform = process.platform;
 const logger = {
     enabled: false,
     setEnabled(value) {
@@ -79,6 +83,30 @@ const resolveCommandManager = (app) => {
 };
 const sanitizeTerminalApp = (value) => value.trim();
 const escapeDoubleQuotes = (value) => value.replace(/"/g, '\\"');
+const getPlatformSummary = () => {
+    if (obsidian.Platform.isDesktopApp) {
+        if (obsidian.Platform.isMacOS) {
+            return "desktop-macos";
+        }
+        if (obsidian.Platform.isWin) {
+            return "desktop-windows";
+        }
+        if (obsidian.Platform.isLinux) {
+            return "desktop-linux";
+        }
+        return "desktop-unknown";
+    }
+    if (obsidian.Platform.isMobileApp) {
+        if (obsidian.Platform.isIosApp) {
+            return "mobile-ios";
+        }
+        if (obsidian.Platform.isAndroidApp) {
+            return "mobile-android";
+        }
+        return "mobile-unknown";
+    }
+    return "unknown";
+};
 const ensureTempScript = (content) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "open-in-terminal-"));
     const filePath = path.join(dir, "launch.command");
@@ -189,14 +217,16 @@ const buildUnixLaunch = (terminalApp, toolCommand) => {
     return { command };
 };
 const buildLaunchCommand = (terminalApp, vaultPath, toolCommand) => {
-    switch (platform) {
-        case "darwin":
-            return buildMacLaunch(terminalApp, vaultPath, toolCommand);
-        case "win32":
-            return buildWindowsLaunch(terminalApp, vaultPath, toolCommand);
-        default:
-            return buildUnixLaunch(terminalApp, toolCommand);
+    if (!obsidian.Platform.isDesktopApp) {
+        return null;
     }
+    if (obsidian.Platform.isMacOS) {
+        return buildMacLaunch(terminalApp, vaultPath, toolCommand);
+    }
+    if (obsidian.Platform.isWin) {
+        return buildWindowsLaunch(terminalApp, vaultPath, toolCommand);
+    }
+    return buildUnixLaunch(terminalApp, toolCommand);
 };
 class OpenInTerminalPlugin extends obsidian.Plugin {
     constructor() {
@@ -268,7 +298,7 @@ class OpenInTerminalPlugin extends obsidian.Plugin {
         const vaultPath = adapter.getBasePath();
         const launchCommand = buildLaunchCommand(this.settings.terminalApp, vaultPath, toolCommand);
         logger.log("Compose launch command", {
-            platform,
+            platform: getPlatformSummary(),
             terminalApp: this.settings.terminalApp,
             toolCommand,
             vaultPath,
