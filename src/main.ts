@@ -53,7 +53,7 @@ const logger = {
   },
   log(...args: unknown[]) {
     if (this.enabled) {
-      console.log("[open-in-terminal]", ...args);
+      console.debug("[open-in-terminal]", ...args);
     }
   }
 };
@@ -153,12 +153,12 @@ const buildMacLaunch = (
   const escapedVaultPath = escapeDoubleQuotes(vaultPath);
   const scriptLines = [
     "#!/bin/bash",
-    `cd \"${escapedVaultPath}\"`
+    `cd "${escapedVaultPath}"`
   ];
   if (toolCommand) {
     scriptLines.push(toolCommand);
   }
-  scriptLines.push("exec \"$SHELL\"");
+  scriptLines.push('exec "$SHELL"');
   const { path, cleanup } = ensureTempScript(scriptLines.join("\n"));
   const command = `open -na "${escapeDoubleQuotes(app)}" "${path}"`;
   logger.log("macOS script launch", { app, command, script: path, toolCommand });
@@ -237,7 +237,7 @@ const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchComma
     return { command };
   }
 
-  const shellCommand = `cd \"$PWD\"; ${toolCommand}; exec \"$SHELL\"`;
+  const shellCommand = `cd "$PWD"; ${toolCommand}; exec "$SHELL"`;
 
   if (app.includes("gnome-terminal")) {
     const command = `${app} -- bash -lc "${shellCommand}"`;
@@ -432,7 +432,7 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Open in Terminal" });
+    new Setting(containerEl).setName("Open in terminal").setHeading();
 
     new Setting(containerEl)
       .setName("Terminal application")
@@ -447,7 +447,7 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Optional commands" });
+    new Setting(containerEl).setName("Optional commands").setHeading();
 
     this.addToggleSetting(containerEl, "Claude Code", () => this.plugin.settings.enableClaude, async (value) => {
       this.plugin.settings.enableClaude = value;
@@ -464,7 +464,7 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
     });
 
-    containerEl.createEl("h3", { text: "Diagnostics" });
+    new Setting(containerEl).setName("Diagnostics").setHeading();
 
     new Setting(containerEl)
       .setName("Enable debug logging")

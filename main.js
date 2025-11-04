@@ -68,7 +68,7 @@ const logger = {
     },
     log(...args) {
         if (this.enabled) {
-            console.log("[open-in-terminal]", ...args);
+            console.debug("[open-in-terminal]", ...args);
         }
     }
 };
@@ -138,12 +138,12 @@ const buildMacLaunch = (terminalApp, vaultPath, toolCommand) => {
     const escapedVaultPath = escapeDoubleQuotes(vaultPath);
     const scriptLines = [
         "#!/bin/bash",
-        `cd \"${escapedVaultPath}\"`
+        `cd "${escapedVaultPath}"`
     ];
     if (toolCommand) {
         scriptLines.push(toolCommand);
     }
-    scriptLines.push("exec \"$SHELL\"");
+    scriptLines.push('exec "$SHELL"');
     const { path, cleanup } = ensureTempScript(scriptLines.join("\n"));
     const command = `open -na "${escapeDoubleQuotes(app)}" "${path}"`;
     logger.log("macOS script launch", { app, command, script: path, toolCommand });
@@ -201,7 +201,7 @@ const buildUnixLaunch = (terminalApp, toolCommand) => {
         logger.log("Unix launch (simple)", { command });
         return { command };
     }
-    const shellCommand = `cd \"$PWD\"; ${toolCommand}; exec \"$SHELL\"`;
+    const shellCommand = `cd "$PWD"; ${toolCommand}; exec "$SHELL"`;
     if (app.includes("gnome-terminal")) {
         const command = `${app} -- bash -lc "${shellCommand}"`;
         logger.log("Unix launch (gnome-terminal)", { command, toolCommand });
@@ -375,7 +375,7 @@ class OpenInTerminalSettingTab extends obsidian.PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty();
-        containerEl.createEl("h2", { text: "Open in Terminal" });
+        new obsidian.Setting(containerEl).setName("Open in terminal").setHeading();
         new obsidian.Setting(containerEl)
             .setName("Terminal application")
             .setDesc("Name of the terminal app to launch (example: Terminal, iTerm, cmd.exe, gnome-terminal).")
@@ -386,7 +386,7 @@ class OpenInTerminalSettingTab extends obsidian.PluginSettingTab {
             this.plugin.settings.terminalApp = value.trim();
             yield this.plugin.saveSettings();
         })));
-        containerEl.createEl("h3", { text: "Optional commands" });
+        new obsidian.Setting(containerEl).setName("Optional commands").setHeading();
         this.addToggleSetting(containerEl, "Claude Code", () => this.plugin.settings.enableClaude, (value) => __awaiter(this, void 0, void 0, function* () {
             this.plugin.settings.enableClaude = value;
             yield this.plugin.saveSettings();
@@ -399,7 +399,7 @@ class OpenInTerminalSettingTab extends obsidian.PluginSettingTab {
             this.plugin.settings.enableGemini = value;
             yield this.plugin.saveSettings();
         }));
-        containerEl.createEl("h3", { text: "Diagnostics" });
+        new obsidian.Setting(containerEl).setName("Diagnostics").setHeading();
         new obsidian.Setting(containerEl)
             .setName("Enable debug logging")
             .setDesc("Logs generated commands to the developer console for troubleshooting.")
