@@ -410,7 +410,8 @@ export default class OpenInTerminalPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const stored = (await this.loadData()) as Partial<OpenInTerminalSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored ?? {});
   }
 
   async saveSettings() {
@@ -432,11 +433,11 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName("Open in terminal").setHeading();
+    new Setting(containerEl).setName("Terminal integration").setHeading();
 
     new Setting(containerEl)
-      .setName("Terminal application")
-      .setDesc("Name of the terminal app to launch (example: Terminal, iTerm, cmd.exe, gnome-terminal).")
+      .setName("Terminal application name")
+      .setDesc("Enter the Terminal app to launch, such as the system default Terminal or a custom executable path.")
       .addText((text) =>
         text
           .setPlaceholder(defaultTerminalApp())
@@ -447,7 +448,7 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl).setName("Optional commands").setHeading();
+    new Setting(containerEl).setName("Command toggles").setHeading();
 
     this.addToggleSetting(containerEl, "Claude Code", () => this.plugin.settings.enableClaude, async (value) => {
       this.plugin.settings.enableClaude = value;

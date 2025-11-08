@@ -356,7 +356,8 @@ class OpenInTerminalPlugin extends obsidian.Plugin {
     }
     loadSettings() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.settings = Object.assign({}, DEFAULT_SETTINGS, yield this.loadData());
+            const stored = (yield this.loadData());
+            this.settings = Object.assign({}, DEFAULT_SETTINGS, stored !== null && stored !== void 0 ? stored : {});
         });
     }
     saveSettings() {
@@ -375,10 +376,10 @@ class OpenInTerminalSettingTab extends obsidian.PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty();
-        new obsidian.Setting(containerEl).setName("Open in terminal").setHeading();
+        new obsidian.Setting(containerEl).setName("Terminal integration").setHeading();
         new obsidian.Setting(containerEl)
-            .setName("Terminal application")
-            .setDesc("Name of the terminal app to launch (example: Terminal, iTerm, cmd.exe, gnome-terminal).")
+            .setName("Terminal application name")
+            .setDesc("Enter the Terminal app to launch, such as the system default Terminal or a custom executable path.")
             .addText((text) => text
             .setPlaceholder(defaultTerminalApp())
             .setValue(this.plugin.settings.terminalApp)
@@ -386,7 +387,7 @@ class OpenInTerminalSettingTab extends obsidian.PluginSettingTab {
             this.plugin.settings.terminalApp = value.trim();
             yield this.plugin.saveSettings();
         })));
-        new obsidian.Setting(containerEl).setName("Optional commands").setHeading();
+        new obsidian.Setting(containerEl).setName("Command toggles").setHeading();
         this.addToggleSetting(containerEl, "Claude Code", () => this.plugin.settings.enableClaude, (value) => __awaiter(this, void 0, void 0, function* () {
             this.plugin.settings.enableClaude = value;
             yield this.plugin.saveSettings();
