@@ -437,7 +437,7 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Terminal application name")
-      .setDesc("Enter the Terminal app to launch, such as the system default Terminal or a custom executable path.")
+      .setDesc("Enter the command line app to launch, such as the default shell or a custom executable path.")
       .addText((text) =>
         text
           .setPlaceholder(defaultTerminalApp())
