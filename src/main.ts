@@ -299,7 +299,7 @@ export default class OpenInTerminalPlugin extends Plugin {
     const commandConfigs: CommandConfig[] = [
       {
         id: "open-terminal",
-        name: "Open in Terminal",
+        name: "Open in terminal",
         enabled: () => true,
         buildCommand: () => this.composeLaunchCommand()
       },
@@ -311,13 +311,13 @@ export default class OpenInTerminalPlugin extends Plugin {
       },
       {
         id: "open-codex",
-        name: "Open in Codex Cli",
+        name: "Open in Codex CLI",
         enabled: () => this.settings.enableCodex,
         buildCommand: () => this.composeLaunchCommand("codex")
       },
       {
         id: "open-gemini",
-        name: "Open in Gemini Cli",
+        name: "Open in Gemini CLI",
         enabled: () => this.settings.enableGemini,
         buildCommand: () => this.composeLaunchCommand("gemini")
       }
@@ -362,7 +362,7 @@ export default class OpenInTerminalPlugin extends Plugin {
     const launchCommand = buildCommand();
     if (!launchCommand) {
       new Notice(
-        `Unable to run ${label}. Check the Open in Terminal settings for the terminal application name.`
+        `Unable to run ${label}. Check the open in terminal settings for the terminal application name.`
       );
       return;
     }
@@ -455,12 +455,12 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
     });
 
-    this.addToggleSetting(containerEl, "Codex Cli", () => this.plugin.settings.enableCodex, async (value) => {
+    this.addToggleSetting(containerEl, "Codex CLI", () => this.plugin.settings.enableCodex, async (value) => {
       this.plugin.settings.enableCodex = value;
       await this.plugin.saveSettings();
     });
 
-    this.addToggleSetting(containerEl, "Gemini Cli", () => this.plugin.settings.enableGemini, async (value) => {
+    this.addToggleSetting(containerEl, "Gemini CLI", () => this.plugin.settings.enableGemini, async (value) => {
       this.plugin.settings.enableGemini = value;
       await this.plugin.saveSettings();
     });

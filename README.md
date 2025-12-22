@@ -1,22 +1,22 @@
-# Obsidian Open in Terminal
+# Open in Terminal
 
 A simple Obsidian plugin that adds palette commands for launching the current vault in your preferred terminal or CLI tooling.
 
 ## Features
-- Always-available `Open in Terminal` command that opens a new window of your configured terminal at the vault directory.
-- Optional commands for Claude Code, Codex Cli, and Gemini Cli that you can enable individually — each reuses the same terminal app and runs `claude`, `codex`, or `gemini` respectively.
+- Always-available `Open in terminal` command that opens a new window of your configured terminal at the vault directory.
+- Optional commands for Claude Code, Codex CLI, and Gemini CLI that you can enable individually — each reuses the same terminal app and runs `claude`, `codex`, or `gemini` respectively.
 - Cross-platform launch strategy with clean defaults (simple launches avoid extra shell commands) and an optional logging toggle for troubleshooting.
 
 ## Commands
-- **Open in Terminal** – activates the configured terminal app and opens it at the vault root without running extra commands.
+- **Open in terminal** – activates the configured terminal app and opens it at the vault root without running extra commands.
 - **Open in Claude Code** – when enabled, opens the terminal app and runs `claude` from the vault directory.
-- **Open in Codex Cli** – when enabled, opens the terminal app and runs `codex`.
-- **Open in Gemini Cli** – when enabled, opens the terminal app and runs `gemini`.
+- **Open in Codex CLI** – when enabled, opens the terminal app and runs `codex`.
+- **Open in Gemini CLI** – when enabled, opens the terminal app and runs `gemini`.
 
 ## Settings
 The plugin adds a settings tab under **Community Plugins → Open in Terminal** with:
 - **Terminal application** – text field for the terminal app name (macOS examples: `Terminal`, `iTerm`; Windows: `cmd.exe`, `powershell`; Linux: `gnome-terminal`, `alacritty`).
-- **Enable Claude Code / Codex Cli / Gemini Cli** – toggles that add the corresponding commands to the palette.
+- **Enable Claude Code / Codex CLI / Gemini CLI** – toggles that add the corresponding commands to the palette.
 - **Enable debug logging** – optional toggle to print generated commands and platform decisions to the developer console.
 
 Commands warn if the terminal application name is empty.
