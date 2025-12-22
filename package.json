@@ -1,6 +1,6 @@
 {
   "name": "obsidian-open-in-terminal",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Open your vault in a new terminal window or launch Claude Code, Codex CLI, or Gemini CLI directly from a terminal.",
   "author": "ChenFeng",
   "scripts": {
