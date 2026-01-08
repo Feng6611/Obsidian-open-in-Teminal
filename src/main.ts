@@ -17,6 +17,7 @@ interface OpenInTerminalSettings {
   enableClaude: boolean;
   enableCodex: boolean;
   enableGemini: boolean;
+  enableOpencode: boolean;
   enableLogging: boolean;
 }
 
@@ -41,6 +42,7 @@ const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   enableClaude: false,
   enableCodex: false,
   enableGemini: false,
+  enableOpencode: false,
   enableLogging: false
 };
 
@@ -320,6 +322,12 @@ export default class OpenInTerminalPlugin extends Plugin {
         name: "Open in Gemini CLI",
         enabled: () => this.settings.enableGemini,
         buildCommand: () => this.composeLaunchCommand("gemini")
+      },
+      {
+        id: "open-opencode",
+        name: "Open in OpenCode",
+        enabled: () => this.settings.enableOpencode,
+        buildCommand: () => this.composeLaunchCommand("opencode")
       }
     ];
 
@@ -462,6 +470,11 @@ class OpenInTerminalSettingTab extends PluginSettingTab {
 
     this.addToggleSetting(containerEl, "Gemini CLI", () => this.plugin.settings.enableGemini, async (value) => {
       this.plugin.settings.enableGemini = value;
+      await this.plugin.saveSettings();
+    });
+
+    this.addToggleSetting(containerEl, "OpenCode", () => this.plugin.settings.enableOpencode, async (value) => {
+      this.plugin.settings.enableOpencode = value;
       await this.plugin.saveSettings();
     });
 
