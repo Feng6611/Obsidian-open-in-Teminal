@@ -7,3 +7,5 @@ node_modules/
 /_temp/
 main.js
 main.js.map
+/skills/
+/AGENTS.md

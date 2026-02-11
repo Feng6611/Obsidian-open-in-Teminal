@@ -1,7 +1,7 @@
 {
   "name": "obsidian-open-in-terminal",
-  "version": "0.5.0",
-  "description": "Open your vault in a new terminal window or launch Claude Code, Codex CLI, or Gemini CLI directly from a terminal.",
+  "version": "0.6.0",
+  "description": "Open your vault in a new terminal window or launch Claude Code, Codex cli, Cursor cli, or Gemini cli directly from a terminal.",
   "author": "ChenFeng",
   "scripts": {
     "dev": "rollup --config rollup.config.js --watch",
