@@ -15,6 +15,7 @@ export interface OpenInTerminalSettings {
   enableCursor: boolean;
   enableGemini: boolean;
   enableOpencode: boolean;
+  enableWslOnWindows: boolean;
 }
 
 export const defaultTerminalApp = (): string => {
@@ -64,7 +65,8 @@ export const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   enableCodex: false,
   enableCursor: false,
   enableGemini: false,
-  enableOpencode: false
+  enableOpencode: false,
+  enableWslOnWindows: false
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -112,7 +114,11 @@ export const normalizeSettings = (stored: unknown): OpenInTerminalSettings => {
     enableCodex: readBoolean(source.enableCodex, DEFAULT_SETTINGS.enableCodex),
     enableCursor: readBoolean(source.enableCursor, DEFAULT_SETTINGS.enableCursor),
     enableGemini: readBoolean(source.enableGemini, DEFAULT_SETTINGS.enableGemini),
-    enableOpencode: readBoolean(source.enableOpencode, DEFAULT_SETTINGS.enableOpencode)
+    enableOpencode: readBoolean(source.enableOpencode, DEFAULT_SETTINGS.enableOpencode),
+    enableWslOnWindows: readBoolean(
+      source.enableWslOnWindows,
+      DEFAULT_SETTINGS.enableWslOnWindows
+    )
   };
 };
 

@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Platform, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
 import {
   defaultTerminalApp,
@@ -44,6 +44,18 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    if (Platform.isWin) {
+      new Setting(containerEl)
+        .setName('Use WSL for commands')
+        .setDesc('Run terminal and CLI commands inside WSL on Windows.')
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.enableWslOnWindows).onChange(async (value) => {
+            this.plugin.settings.enableWslOnWindows = value;
+            await this.plugin.saveSettings();
+          })
+        );
+    }
 
     new Setting(containerEl).setName('Command toggles').setHeading();
 

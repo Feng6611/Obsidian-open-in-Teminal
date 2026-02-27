@@ -11,9 +11,26 @@ export type LaunchCommand = {
   cleanup?: () => void;
 };
 
+export type LaunchOptions = {
+  useWslOnWindows?: boolean;
+};
+
 const sanitizeTerminalApp = (value: string): string => value.trim();
 
 const escapeDoubleQuotes = (value: string): string => value.replace(/"/g, '\\"');
+
+const escapeForCmdQuotedString = (value: string): string => value.replace(/"/g, '""');
+
+const toWslPath = (windowsPath: string): string | null => {
+  const normalized = windowsPath.replace(/\\/g, '/');
+  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!match) {
+    return null;
+  }
+  const drive = match[1].toLowerCase();
+  const rest = match[2];
+  return `/mnt/${drive}/${rest}`;
+};
 
 export const getPlatformSummary = (): string => {
   if (Platform.isDesktopApp) {
@@ -89,7 +106,8 @@ const buildMacLaunch = (
 const buildWindowsLaunch = (
   terminalApp: string,
   vaultPath: string,
-  toolCommand?: string
+  toolCommand?: string,
+  useWslOnWindows?: boolean
 ): LaunchCommand | null => {
   const app = sanitizeTerminalApp(terminalApp);
   if (!app) {
@@ -101,6 +119,55 @@ const buildWindowsLaunch = (
   const tool = toolCommand ? ` && ${toolCommand}` : '';
 
   const lowerApp = app.toLowerCase();
+
+  if (useWslOnWindows) {
+    const wslVaultPath = toWslPath(vaultPath);
+    if (!wslVaultPath) {
+      logger.log('Windows WSL launch skipped due to unsupported path', { vaultPath });
+      return null;
+    }
+
+    const wslPrefix = `wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}"`;
+    const wslCommand = toolCommand ? `${wslPrefix} ${toolCommand}` : wslPrefix;
+
+    if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
+      const command = `start "" cmd.exe /K "${wslCommand}"`;
+      logger.log('Windows launch (cmd.exe + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
+      return { command };
+    }
+
+    if (lowerApp === 'powershell' || lowerApp === 'powershell.exe') {
+      const psWslPath = wslVaultPath.replace(/'/g, "''");
+      const psCommand = toolCommand
+        ? `start "" powershell -NoExit -Command "wsl.exe --cd '${psWslPath}' ${toolCommand}"`
+        : `start "" powershell -NoExit -Command "wsl.exe --cd '${psWslPath}'"`;
+      logger.log('Windows launch (powershell + WSL)', {
+        command: psCommand,
+        toolCommand,
+        vaultPath,
+        wslVaultPath
+      });
+      return { command: psCommand };
+    }
+
+    if (lowerApp === 'wt.exe' || lowerApp === 'wt') {
+      const command = toolCommand
+        ? `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}" ${toolCommand}`
+        : `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}"`;
+      logger.log('Windows launch (wt + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
+      return { command };
+    }
+
+    const command = `start "" cmd.exe /K "${wslCommand}"`;
+    logger.log('Windows launch (generic + WSL fallback)', {
+      command,
+      app,
+      toolCommand,
+      vaultPath,
+      wslVaultPath
+    });
+    return { command };
+  }
 
   if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
     const command = toolCommand
@@ -180,7 +247,8 @@ const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchComma
 export const buildLaunchCommand = (
   terminalApp: string,
   vaultPath: string,
-  toolCommand?: string
+  toolCommand?: string,
+  options?: LaunchOptions
 ): LaunchCommand | null => {
   if (!Platform.isDesktopApp) {
     return null;
@@ -189,7 +257,7 @@ export const buildLaunchCommand = (
     return buildMacLaunch(terminalApp, vaultPath, toolCommand);
   }
   if (Platform.isWin) {
-    return buildWindowsLaunch(terminalApp, vaultPath, toolCommand);
+    return buildWindowsLaunch(terminalApp, vaultPath, toolCommand, options?.useWslOnWindows);
   }
   return buildUnixLaunch(terminalApp, toolCommand);
 };

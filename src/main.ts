@@ -63,7 +63,9 @@ export default class OpenInTerminalPlugin extends Plugin {
     }
     const vaultPath = adapter.getBasePath();
     const terminalApp = getCurrentTerminalApp(this.settings.terminalApp);
-    const launchCommand = buildLaunchCommand(terminalApp, vaultPath, toolCommand);
+    const launchCommand = buildLaunchCommand(terminalApp, vaultPath, toolCommand, {
+      useWslOnWindows: this.settings.enableWslOnWindows
+    });
     logger.log('Compose launch command', {
       platform: getPlatformSummary(),
       terminalApp,
