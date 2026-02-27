@@ -69,7 +69,7 @@ const buildMacLaunch = (
   if (!toolCommand) {
     const escapedApp = escapeDoubleQuotes(app);
     const escapedPath = escapeDoubleQuotes(vaultPath);
-    const command = `open -na "${escapedApp}" "${escapedPath}"`;
+    const command = `open -a "${escapedApp}" "${escapedPath}"`;
     logger.log('macOS simple launch', { app, command, vaultPath });
     return { command };
   }
@@ -81,7 +81,7 @@ const buildMacLaunch = (
   }
   scriptLines.push('exec "$SHELL"');
   const { path, cleanup } = ensureTempScript(scriptLines.join('\n'));
-  const command = `open -na "${escapeDoubleQuotes(app)}" "${path}"`;
+  const command = `open -a "${escapeDoubleQuotes(app)}" "${path}"`;
   logger.log('macOS script launch', { app, command, script: path, toolCommand });
   return { command, cleanup };
 };
