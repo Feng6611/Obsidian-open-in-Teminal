@@ -48,7 +48,7 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
     if (Platform.isWin) {
       new Setting(containerEl)
         .setName('Use WSL for commands')
-        .setDesc('Run terminal and CLI commands inside WSL on Windows.')
+        .setDesc('Run commands inside WSL on Windows.')
         .addToggle((toggle) =>
           toggle.setValue(this.plugin.settings.enableWslOnWindows).onChange(async (value) => {
             this.plugin.settings.enableWslOnWindows = value;
@@ -57,9 +57,47 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
         );
     }
 
+    new Setting(containerEl).setName('Git commands').setHeading();
+
+    new Setting(containerEl)
+      .setName('Default commit message')
+      .setDesc('Used when running the commit and push command.')
+      .addText((text) =>
+        text
+          .setPlaceholder('Update')
+          .setValue(this.plugin.settings.defaultCommitMessage)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultCommitMessage = value.trim() || 'update';
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Enable Git: commit and push')
+      .setDesc('Add a command to commit all changes and push to remote.')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.enableGitCommitPush).onChange(async (value) => {
+          this.plugin.settings.enableGitCommitPush = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Enable Git: pull')
+      .setDesc('Add a command to pull changes from remote.')
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.enableGitPull).onChange(async (value) => {
+          this.plugin.settings.enableGitPull = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
     new Setting(containerEl).setName('Command toggles').setHeading();
 
     for (const target of optionalLaunchTargets) {
+      if (target.settingKey === 'enableGitCommitPush' || target.settingKey === 'enableGitPull') {
+        continue;
+      }
       this.addToggleSetting(
         containerEl,
         target.settingLabel,

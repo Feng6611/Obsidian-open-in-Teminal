@@ -16,6 +16,9 @@ export interface OpenInTerminalSettings {
   enableGemini: boolean;
   enableOpencode: boolean;
   enableWslOnWindows: boolean;
+  enableGitCommitPush: boolean;
+  enableGitPull: boolean;
+  defaultCommitMessage: string;
 }
 
 export const defaultTerminalApp = (): string => {
@@ -66,7 +69,10 @@ export const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   enableCursor: false,
   enableGemini: false,
   enableOpencode: false,
-  enableWslOnWindows: false
+  enableWslOnWindows: false,
+  enableGitCommitPush: false,
+  enableGitPull: false,
+  defaultCommitMessage: 'update'
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -118,7 +124,16 @@ export const normalizeSettings = (stored: unknown): OpenInTerminalSettings => {
     enableWslOnWindows: readBoolean(
       source.enableWslOnWindows,
       DEFAULT_SETTINGS.enableWslOnWindows
-    )
+    ),
+    enableGitCommitPush: readBoolean(
+      source.enableGitCommitPush,
+      DEFAULT_SETTINGS.enableGitCommitPush
+    ),
+    enableGitPull: readBoolean(source.enableGitPull, DEFAULT_SETTINGS.enableGitPull),
+    defaultCommitMessage:
+      typeof source.defaultCommitMessage === 'string'
+        ? source.defaultCommitMessage
+        : DEFAULT_SETTINGS.defaultCommitMessage
   };
 };
 

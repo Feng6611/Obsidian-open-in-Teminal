@@ -5,7 +5,9 @@ export type OptionalTargetSettingKey =
   | 'enableCodex'
   | 'enableCursor'
   | 'enableGemini'
-  | 'enableOpencode';
+  | 'enableOpencode'
+  | 'enableGitCommitPush'
+  | 'enableGitPull';
 
 export type LaunchTarget = {
   id: string;
@@ -56,6 +58,20 @@ export const optionalLaunchTargets: readonly OptionalLaunchTarget[] = [
     toolCommand: 'opencode',
     settingKey: 'enableOpencode',
     settingLabel: 'OpenCode'
+  },
+  {
+    id: 'git-commit-push',
+    commandName: 'Git: commit and push',
+    toolCommand: '',
+    settingKey: 'enableGitCommitPush',
+    settingLabel: 'Git: commit and push'
+  },
+  {
+    id: 'git-pull',
+    commandName: 'Git: pull',
+    toolCommand: '',
+    settingKey: 'enableGitPull',
+    settingLabel: 'Git: pull'
   }
 ];
 

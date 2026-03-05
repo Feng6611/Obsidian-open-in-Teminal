@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 
-import { FileSystemAdapter, Notice, Plugin } from 'obsidian';
+import { FileSystemAdapter, Modal, Notice, Plugin } from 'obsidian';
 
 import { resolveCommandManager } from './command-manager';
 import { buildLaunchCommand, getPlatformSummary, type LaunchCommand } from './launcher';
@@ -40,6 +40,26 @@ export default class OpenInTerminalPlugin extends Plugin {
 
     for (const target of launchTargets) {
       if (!isTargetEnabled(this.settings, target)) {
+        continue;
+      }
+
+      if (target.id === 'git-commit-push') {
+        this.addCommand({
+          id: target.id,
+          name: target.commandName,
+          callback: () => this.runGitCommitPush()
+        });
+        this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
+        continue;
+      }
+
+      if (target.id === 'git-pull') {
+        this.addCommand({
+          id: target.id,
+          name: target.commandName,
+          callback: () => this.runGitPull()
+        });
+        this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
         continue;
       }
 
@@ -134,5 +154,111 @@ export default class OpenInTerminalPlugin extends Plugin {
   async saveSettings() {
     await this.saveData(this.settings);
     this.refreshCommands();
+  }
+
+  private async runGitCommitPush() {
+    const isGitRepo = await this.checkGitRepo();
+    if (!isGitRepo) {
+      new Notice('Not a Git repository');
+      return;
+    }
+
+    const message = await this.promptCommitMessage();
+    if (!message) {
+      return;
+    }
+
+    const escapedMessage = message.replace(/"/g, '\\"');
+    const gitCommand = `git add . && git commit -m "${escapedMessage}" && git push`;
+
+    this.runLaunchCommand(
+      () => this.composeLaunchCommand(gitCommand),
+      'Git: commit and push'
+    );
+  }
+
+  private async runGitPull() {
+    const isGitRepo = await this.checkGitRepo();
+    if (!isGitRepo) {
+      new Notice('Not a Git repository');
+      return;
+    }
+
+    const gitCommand = 'git pull';
+    this.runLaunchCommand(() => this.composeLaunchCommand(gitCommand), 'Git: pull');
+  }
+
+  private async checkGitRepo(): Promise<boolean> {
+    const adapter = this.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) {
+      return false;
+    }
+    const vaultPath = adapter.getBasePath();
+
+    return new Promise((resolve) => {
+      const child = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
+        cwd: vaultPath,
+        shell: true,
+        stdio: 'ignore'
+      });
+      child.on('close', (code) => resolve(code === 0));
+      child.on('error', () => resolve(false));
+    });
+  }
+
+  private async promptCommitMessage(): Promise<string | null> {
+    return new Promise((resolve) => {
+      const modal = new Modal(this.app);
+      modal.titleEl.setText('Git commit message');
+
+      const inputEl = modal.contentEl.createEl('input', {
+        type: 'text',
+        value: this.settings.defaultCommitMessage
+      });
+      inputEl.setCssProps({
+        width: '100%',
+        marginBottom: '10px'
+      });
+      inputEl.select();
+
+      const buttonContainer = modal.contentEl.createDiv();
+      buttonContainer.setCssProps({
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '8px'
+      });
+
+      const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+      const commitBtn = buttonContainer.createEl('button', {
+        text: 'Commit and push',
+        cls: 'mod-cta'
+      });
+
+      cancelBtn.onclick = () => {
+        modal.close();
+        resolve(null);
+      };
+
+      commitBtn.onclick = () => {
+        const message = inputEl.value.trim();
+        if (message) {
+          modal.close();
+          resolve(message);
+        } else {
+          new Notice('Commit message cannot be empty');
+        }
+      };
+
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          commitBtn.click();
+        } else if (e.key === 'Escape') {
+          cancelBtn.click();
+        }
+      });
+
+      modal.open();
+      inputEl.focus();
+    });
   }
 }
