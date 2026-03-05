@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 
-import { FileSystemAdapter, Modal, Notice, Plugin } from 'obsidian';
+import { FileSystemAdapter, Notice, Platform, Plugin } from 'obsidian';
 
 import { resolveCommandManager } from './command-manager';
 import { buildLaunchCommand, getPlatformSummary, type LaunchCommand } from './launcher';
@@ -43,34 +43,24 @@ export default class OpenInTerminalPlugin extends Plugin {
         continue;
       }
 
-      if (target.id === 'git-commit-push') {
-        this.addCommand({
-          id: target.id,
-          name: target.commandName,
-          callback: () => this.runGitCommitPush()
-        });
-        this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
-        continue;
-      }
-
-      if (target.id === 'git-pull') {
-        this.addCommand({
-          id: target.id,
-          name: target.commandName,
-          callback: () => this.runGitPull()
-        });
-        this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
-        continue;
-      }
-
       this.addCommand({
         id: target.id,
         name: target.commandName,
-        callback: () =>
+        callback: () => {
+          if (target.action === 'git') {
+            if (target.gitAction === 'commit-push') {
+              void this.runGitCommitPush();
+              return;
+            }
+            void this.runGitPull();
+            return;
+          }
+
           this.runLaunchCommand(
             () => this.composeLaunchCommand(target.toolCommand),
             target.commandName
-          )
+          );
+        }
       });
       this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
     }
@@ -163,43 +153,8 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    const message = await this.promptCommitMessage();
-    if (!message) {
-      return;
-    }
-
-    new Notice('Committing and pushing...');
-
-    const adapter = this.app.vault.adapter;
-    if (!(adapter instanceof FileSystemAdapter)) {
-      new Notice('File system adapter not available');
-      return;
-    }
-    const vaultPath = adapter.getBasePath();
-
-    try {
-      const addResult = await this.executeGitCommand(vaultPath, ['add', '.']);
-      if (!addResult.success) {
-        new Notice(`Git add failed: ${addResult.error}`);
-        return;
-      }
-
-      const commitResult = await this.executeGitCommand(vaultPath, ['commit', '-m', message]);
-      if (!commitResult.success) {
-        new Notice(`Git commit failed: ${commitResult.error}`);
-        return;
-      }
-
-      const pushResult = await this.executeGitCommand(vaultPath, ['push']);
-      if (!pushResult.success) {
-        new Notice(`Git push failed: ${pushResult.error}`);
-        return;
-      }
-
-      new Notice('Successfully pushed changes');
-    } catch (error) {
-      new Notice(`Git operation failed: ${String(error)}`);
-    }
+    const gitCommand = this.buildGitCommitPushCommand();
+    this.runLaunchCommand(() => this.composeLaunchCommand(gitCommand), 'Git: commit and push');
   }
 
   private async runGitPull() {
@@ -209,66 +164,7 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    new Notice('Pulling changes...');
-
-    const adapter = this.app.vault.adapter;
-    if (!(adapter instanceof FileSystemAdapter)) {
-      new Notice('File system adapter not available');
-      return;
-    }
-    const vaultPath = adapter.getBasePath();
-
-    try {
-      const result = await this.executeGitCommand(vaultPath, ['pull']);
-      if (!result.success) {
-        new Notice(`Git pull failed: ${result.error}`);
-        return;
-      }
-
-      new Notice('Successfully pulled changes');
-    } catch (error) {
-      new Notice(`Git pull failed: ${String(error)}`);
-    }
-  }
-
-  private async executeGitCommand(
-    cwd: string,
-    args: string[]
-  ): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      const child = spawn('git', args, {
-        cwd,
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-
-      let stderr = '';
-      let stdout = '';
-
-      if (child.stdout) {
-        child.stdout.on('data', (data: Buffer) => {
-          stdout += data.toString();
-        });
-      }
-
-      if (child.stderr) {
-        child.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString();
-        });
-      }
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true });
-        } else {
-          const errorMsg = stderr.trim() || stdout.trim() || `Exit code ${code}`;
-          resolve({ success: false, error: errorMsg });
-        }
-      });
-
-      child.on('error', (error) => {
-        resolve({ success: false, error: error.message });
-      });
-    });
+    this.runLaunchCommand(() => this.composeLaunchCommand('git pull'), 'Git: pull');
   }
 
   private async checkGitRepo(): Promise<boolean> {
@@ -288,61 +184,25 @@ export default class OpenInTerminalPlugin extends Plugin {
     });
   }
 
-  private async promptCommitMessage(): Promise<string | null> {
-    return new Promise((resolve) => {
-      const modal = new Modal(this.app);
-      modal.titleEl.setText('Git commit message');
+  private buildGitCommitPushCommand(): string {
+    const normalized = this.settings.defaultCommitMessage.replace(/[\r\n]+/g, ' ').trim() || 'update';
+    const escaped = this.escapeCommitMessageForShell(normalized);
+    return `git add . && git commit -m "${escaped}" && git push`;
+  }
 
-      const defaultMessage = this.settings.defaultCommitMessage.trim() || 'update';
+  private escapeCommitMessageForShell(message: string): string {
+    if (Platform.isWin) {
+      return message
+        .replace(/\^/g, '^^')
+        .replace(/"/g, '""')
+        .replace(/%/g, '%%')
+        .replace(/!/g, '^^!');
+    }
 
-      const inputEl = modal.contentEl.createEl('input', {
-        type: 'text',
-        value: defaultMessage
-      });
-      inputEl.setCssProps({
-        width: '100%',
-        marginBottom: '10px'
-      });
-      inputEl.select();
-
-      const buttonContainer = modal.contentEl.createDiv();
-      buttonContainer.setCssProps({
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '8px'
-      });
-
-      const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
-      const commitBtn = buttonContainer.createEl('button', {
-        text: 'Commit and push',
-        cls: 'mod-cta'
-      });
-
-      cancelBtn.onclick = () => {
-        modal.close();
-        resolve(null);
-      };
-
-      commitBtn.onclick = () => {
-        const message = inputEl.value.trim();
-        if (message) {
-          modal.close();
-          resolve(message);
-        } else {
-          new Notice('Commit message cannot be empty');
-        }
-      };
-
-      inputEl.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          commitBtn.click();
-        } else if (e.key === 'Escape') {
-          cancelBtn.click();
-        }
-      });
-
-      modal.open();
-      inputEl.focus();
-    });
+    return message
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
   }
 }

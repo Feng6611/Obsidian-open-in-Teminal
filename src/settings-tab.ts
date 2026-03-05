@@ -95,7 +95,7 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName('Command toggles').setHeading();
 
     for (const target of optionalLaunchTargets) {
-      if (target.settingKey === 'enableGitCommitPush' || target.settingKey === 'enableGitPull') {
+      if (target.action !== 'terminal') {
         continue;
       }
       this.addToggleSetting(
