@@ -168,13 +168,38 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    const escapedMessage = message.replace(/"/g, '\\"');
-    const gitCommand = `git add . && git commit -m "${escapedMessage}" && git push`;
+    new Notice('Committing and pushing...');
 
-    this.runLaunchCommand(
-      () => this.composeLaunchCommand(gitCommand),
-      'Git: commit and push'
-    );
+    const adapter = this.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) {
+      new Notice('File system adapter not available');
+      return;
+    }
+    const vaultPath = adapter.getBasePath();
+
+    try {
+      const addResult = await this.executeGitCommand(vaultPath, ['add', '.']);
+      if (!addResult.success) {
+        new Notice(`Git add failed: ${addResult.error}`);
+        return;
+      }
+
+      const commitResult = await this.executeGitCommand(vaultPath, ['commit', '-m', message]);
+      if (!commitResult.success) {
+        new Notice(`Git commit failed: ${commitResult.error}`);
+        return;
+      }
+
+      const pushResult = await this.executeGitCommand(vaultPath, ['push']);
+      if (!pushResult.success) {
+        new Notice(`Git push failed: ${pushResult.error}`);
+        return;
+      }
+
+      new Notice('Successfully pushed changes');
+    } catch (error) {
+      new Notice(`Git operation failed: ${String(error)}`);
+    }
   }
 
   private async runGitPull() {
@@ -184,8 +209,66 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    const gitCommand = 'git pull';
-    this.runLaunchCommand(() => this.composeLaunchCommand(gitCommand), 'Git: pull');
+    new Notice('Pulling changes...');
+
+    const adapter = this.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) {
+      new Notice('File system adapter not available');
+      return;
+    }
+    const vaultPath = adapter.getBasePath();
+
+    try {
+      const result = await this.executeGitCommand(vaultPath, ['pull']);
+      if (!result.success) {
+        new Notice(`Git pull failed: ${result.error}`);
+        return;
+      }
+
+      new Notice('Successfully pulled changes');
+    } catch (error) {
+      new Notice(`Git pull failed: ${String(error)}`);
+    }
+  }
+
+  private async executeGitCommand(
+    cwd: string,
+    args: string[]
+  ): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      const child = spawn('git', args, {
+        cwd,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stderr = '';
+      let stdout = '';
+
+      if (child.stdout) {
+        child.stdout.on('data', (data: Buffer) => {
+          stdout += data.toString();
+        });
+      }
+
+      if (child.stderr) {
+        child.stderr.on('data', (data: Buffer) => {
+          stderr += data.toString();
+        });
+      }
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ success: true });
+        } else {
+          const errorMsg = stderr.trim() || stdout.trim() || `Exit code ${code}`;
+          resolve({ success: false, error: errorMsg });
+        }
+      });
+
+      child.on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
   }
 
   private async checkGitRepo(): Promise<boolean> {
@@ -198,7 +281,6 @@ export default class OpenInTerminalPlugin extends Plugin {
     return new Promise((resolve) => {
       const child = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
         cwd: vaultPath,
-        shell: true,
         stdio: 'ignore'
       });
       child.on('close', (code) => resolve(code === 0));
@@ -211,9 +293,11 @@ export default class OpenInTerminalPlugin extends Plugin {
       const modal = new Modal(this.app);
       modal.titleEl.setText('Git commit message');
 
+      const defaultMessage = this.settings.defaultCommitMessage.trim() || 'update';
+
       const inputEl = modal.contentEl.createEl('input', {
         type: 'text',
-        value: this.settings.defaultCommitMessage
+        value: defaultMessage
       });
       inputEl.setCssProps({
         width: '100%',
