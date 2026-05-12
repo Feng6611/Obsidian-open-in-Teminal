@@ -225,7 +225,7 @@ const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchComma
     return { command };
   }
 
-  const shellCommand = `cd "$PWD"; ${toolCommand}; exec "$SHELL"`;
+  const shellCommand = `cd \\"$PWD\\"; ${toolCommand}; exec \\"$SHELL\\"`;
 
   if (app.includes('gnome-terminal')) {
     const command = `${app} -- bash -lc "${shellCommand}"`;
