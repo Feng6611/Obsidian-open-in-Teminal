@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { join } from 'path';
 
 import { FileSystemAdapter, Notice, Platform, Plugin } from 'obsidian';
 
@@ -72,18 +73,31 @@ export default class OpenInTerminalPlugin extends Plugin {
       return null;
     }
     const vaultPath = adapter.getBasePath();
+    const launchPath = this.getLaunchPath(vaultPath);
     const terminalApp = getCurrentTerminalApp(this.settings.terminalApp);
-    const launchCommand = buildLaunchCommand(terminalApp, vaultPath, toolCommand, {
-      useWslOnWindows: this.settings.enableWslOnWindows
+    const launchCommand = buildLaunchCommand(terminalApp, launchPath, toolCommand, {
+      useWslOnWindows: this.settings.enableWslOnWindows,
+      reuseExistingMacApp: this.settings.reuseExistingMacApp
     });
     logger.log('Compose launch command', {
       platform: getPlatformSummary(),
       terminalApp,
       toolCommand,
       vaultPath,
+      launchPath,
       launchCommand
     });
-    return launchCommand;
+    return launchCommand ? { ...launchCommand, cwd: launchPath } : null;
+  }
+
+  private getLaunchPath(vaultPath: string): string {
+    if (!this.settings.openAtCurrentNoteFolder) {
+      return vaultPath;
+    }
+
+    const activeFile = this.app.workspace.getActiveFile();
+    const folderPath = activeFile?.parent?.path;
+    return folderPath ? join(vaultPath, folderPath) : vaultPath;
   }
 
   private runLaunchCommand(buildCommand: () => LaunchCommand | null, label: string) {
@@ -105,11 +119,17 @@ export default class OpenInTerminalPlugin extends Plugin {
     }
 
     const vaultPath = adapter.getBasePath();
+    const workingDirectory = launchCommand.cwd ?? vaultPath;
 
     try {
-      logger.log('Spawning command', { label, command: launchCommand.command, vaultPath });
+      logger.log('Spawning command', {
+        label,
+        command: launchCommand.command,
+        vaultPath,
+        workingDirectory
+      });
       const child = spawn(launchCommand.command, {
-        cwd: vaultPath,
+        cwd: workingDirectory,
         shell: true,
         detached: true,
         stdio: 'ignore'

@@ -9,6 +9,7 @@ A simple Obsidian plugin that adds palette commands for launching the current va
   - `Git: commit and push` runs `git add . && git commit -m "<default message>" && git push` in a newly launched terminal.
   - `Git: pull` runs `git pull` in a newly launched terminal.
 - Cross-platform launch strategy with clean defaults (simple launches avoid extra shell commands).
+- Optional working-directory and macOS app-instance settings.
 
 ## Commands
 - **Open in terminal** – activates the configured terminal app and opens it at the vault root without running extra commands.
@@ -23,6 +24,8 @@ A simple Obsidian plugin that adds palette commands for launching the current va
 ## Settings
 The plugin adds a settings tab under **Community Plugins → Open in Terminal** with:
 - **Terminal application** – text field for the current platform's terminal app name (macOS examples: `Terminal`, `iTerm`; Windows: `cmd.exe`, `powershell`; Linux: `gnome-terminal`, `alacritty`). Settings are stored per platform for cross-device sync.
+- **Open at current note's folder** – uses the active note's folder as the working directory; falls back to the vault root when no note is open.
+- **Reuse existing terminal instance** (macOS only) – uses `open -a` by default so macOS reuses the configured terminal application. Disable it to use `open -na` and force a new application instance.
 - **Enable Claude Code / Codex cli / Cursor cli / Gemini cli / OpenCode** – toggles that add the corresponding commands to the palette.
 - **Git commands**:
   - **Default commit message** – used by `Git: commit and push` (default: `update`).
@@ -33,7 +36,7 @@ The plugin adds a settings tab under **Community Plugins → Open in Terminal** 
 Commands warn if the terminal application name is empty.
 
 ## Platform notes
-- **macOS** – simple launches use `open -a <app>`; when running a cli command, the plugin creates a temporary `.command` script that is cleaned up after launch, avoiding AppleScript permissions.
+- **macOS** – launches use `open -a <app>` by default (or `open -na <app>` when the reuse setting is disabled); when running a cli command, the plugin creates a temporary `.command` script that is cleaned up after launch, avoiding AppleScript permissions.
 - **Windows** – uses `start` to launch `cmd.exe`, `powershell`, `wt.exe`, or other shells with the vault directory preselected; cli commands append the respective tool invocation or fall back to `cmd.exe /K` when necessary.
 - **Linux / BSD** – simple launches spawn the terminal directly with the vault as the working directory; cli commands fall back to `<terminal> -e bash -lc 'cd "$PWD"; …'` with tweaks for GNOME Terminal and Konsole.
 

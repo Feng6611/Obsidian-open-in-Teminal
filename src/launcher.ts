@@ -8,11 +8,13 @@ import { logger } from './logger';
 
 export type LaunchCommand = {
   command: string;
+  cwd?: string;
   cleanup?: () => void;
 };
 
 export type LaunchOptions = {
   useWslOnWindows?: boolean;
+  reuseExistingMacApp?: boolean;
 };
 
 const sanitizeTerminalApp = (value: string): string => value.trim();
@@ -76,17 +78,20 @@ const ensureTempScript = (content: string): { path: string; cleanup: () => void 
 const buildMacLaunch = (
   terminalApp: string,
   vaultPath: string,
-  toolCommand?: string
+  toolCommand?: string,
+  options?: LaunchOptions
 ): LaunchCommand | null => {
   const app = sanitizeTerminalApp(terminalApp);
   if (!app) {
     return null;
   }
 
+  const openFlag = options?.reuseExistingMacApp === false ? '-na' : '-a';
+
   if (!toolCommand) {
     const escapedApp = escapeDoubleQuotes(app);
     const escapedPath = escapeDoubleQuotes(vaultPath);
-    const command = `open -a "${escapedApp}" "${escapedPath}"`;
+    const command = `open ${openFlag} "${escapedApp}" "${escapedPath}"`;
     logger.log('macOS simple launch', { app, command, vaultPath });
     return { command };
   }
@@ -98,7 +103,7 @@ const buildMacLaunch = (
   }
   scriptLines.push('exec "$SHELL"');
   const { path, cleanup } = ensureTempScript(scriptLines.join('\n'));
-  const command = `open -a "${escapeDoubleQuotes(app)}" "${path}"`;
+  const command = `open ${openFlag} "${escapeDoubleQuotes(app)}" "${path}"`;
   logger.log('macOS script launch', { app, command, script: path, toolCommand });
   return { command, cleanup };
 };
@@ -225,7 +230,7 @@ const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchComma
     return { command };
   }
 
-  const shellCommand = `cd "$PWD"; ${toolCommand}; exec "$SHELL"`;
+  const shellCommand = `cd \\\"$PWD\\\"; ${toolCommand}; exec \\\"$SHELL\\\"`;
 
   if (app.includes('gnome-terminal')) {
     const command = `${app} -- bash -lc "${shellCommand}"`;
@@ -254,7 +259,7 @@ export const buildLaunchCommand = (
     return null;
   }
   if (Platform.isMacOS) {
-    return buildMacLaunch(terminalApp, vaultPath, toolCommand);
+    return buildMacLaunch(terminalApp, vaultPath, toolCommand, options);
   }
   if (Platform.isWin) {
     return buildWindowsLaunch(terminalApp, vaultPath, toolCommand, options?.useWslOnWindows);

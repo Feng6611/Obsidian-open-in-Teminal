@@ -10,6 +10,8 @@ type TerminalAppByPlatform = {
 
 export interface OpenInTerminalSettings {
   terminalApp: TerminalAppByPlatform;
+  openAtCurrentNoteFolder: boolean;
+  reuseExistingMacApp: boolean;
   enableClaude: boolean;
   enableCodex: boolean;
   enableCursor: boolean;
@@ -64,6 +66,8 @@ const buildDefaultTerminalAppSetting = (): TerminalAppByPlatform => {
 
 export const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   terminalApp: buildDefaultTerminalAppSetting(),
+  openAtCurrentNoteFolder: false,
+  reuseExistingMacApp: true,
   enableClaude: false,
   enableCodex: false,
   enableCursor: false,
@@ -116,6 +120,14 @@ export const normalizeSettings = (stored: unknown): OpenInTerminalSettings => {
   const source = isRecord(stored) ? stored : {};
   return {
     terminalApp: normalizeTerminalAppSetting(source.terminalApp, DEFAULT_SETTINGS.terminalApp),
+    openAtCurrentNoteFolder: readBoolean(
+      source.openAtCurrentNoteFolder,
+      DEFAULT_SETTINGS.openAtCurrentNoteFolder
+    ),
+    reuseExistingMacApp: readBoolean(
+      source.reuseExistingMacApp,
+      DEFAULT_SETTINGS.reuseExistingMacApp
+    ),
     enableClaude: readBoolean(source.enableClaude, DEFAULT_SETTINGS.enableClaude),
     enableCodex: readBoolean(source.enableCodex, DEFAULT_SETTINGS.enableCodex),
     enableCursor: readBoolean(source.enableCursor, DEFAULT_SETTINGS.enableCursor),

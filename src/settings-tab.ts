@@ -45,6 +45,28 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName("Open at current note's folder")
+      .setDesc("Use the active note's folder as the Terminal working directory. Falls back to the vault root when no note is open.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.openAtCurrentNoteFolder).onChange(async (value) => {
+          this.plugin.settings.openAtCurrentNoteFolder = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    if (Platform.isMacOS) {
+      new Setting(containerEl)
+        .setName('Reuse existing Terminal instance')
+        .setDesc('Use macOS open -a to reuse the configured Terminal app. Turn this off to launch a new instance.')
+        .addToggle((toggle) =>
+          toggle.setValue(this.plugin.settings.reuseExistingMacApp).onChange(async (value) => {
+            this.plugin.settings.reuseExistingMacApp = value;
+            await this.plugin.saveSettings();
+          })
+        );
+    }
+
     if (Platform.isWin) {
       new Setting(containerEl)
         .setName('Use WSL for commands')
