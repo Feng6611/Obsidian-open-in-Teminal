@@ -8,6 +8,7 @@ A simple Obsidian plugin that adds palette commands for launching the current va
 - Optional Git commands:
   - `Git: commit and push` runs `git add . && git commit -m "<default message>" && git push` in a newly launched terminal.
   - `Git: pull` runs `git pull` in a newly launched terminal.
+  - Git commands always use the vault root as their working directory, even when note-folder launching is enabled.
 - Cross-platform launch strategy with clean defaults (simple launches avoid extra shell commands).
 - Optional working-directory and macOS app-instance settings.
 
@@ -48,7 +49,7 @@ Commands warn if the terminal application name is empty.
 Copy the generated `manifest.json`, `main.js`, and `styles.css` (if added) into your vault's `.obsidian/plugins/open-in-terminal/` folder to test locally.
 
 ## Release workflow
-- Tag commits with the format `vX.Y.Z` to trigger the GitHub Actions release pipeline defined in `.github/workflows/release.yml`.
+- Tag commits with the format `X.Y.Z` to trigger the GitHub Actions release pipeline defined in `.github/workflows/release.yml`; keep the tag and manifest version in sync.
 - The workflow installs dependencies, builds the plugin, packages `manifest.json`, `main.js`, and optional `styles.css`, and attaches them (as well as a zip archive) to the GitHub release.
 - Follow Obsidian's [submission checklist](https://docs.obsidian.md/Plugins/Releasing/Submission+requirements+for+plugins) before opening or updating the community plugins PR.
 
