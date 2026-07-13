@@ -48,3 +48,11 @@ Copy the generated `manifest.json`, `main.js`, and `styles.css` (if added) into 
 - Tag commits with the format `vX.Y.Z` to trigger the GitHub Actions release pipeline defined in `.github/workflows/release.yml`.
 - The workflow installs dependencies, builds the plugin, packages `manifest.json`, `main.js`, and optional `styles.css`, and attaches them (as well as a zip archive) to the GitHub release.
 - Follow Obsidian's [submission checklist](https://docs.obsidian.md/Plugins/Releasing/Submission+requirements+for+plugins) before opening or updating the community plugins PR.
+
+## About the author
+
+I'm [chenfeng](https://github.com/Feng6611). Besides Obsidian plugins I
+build small, permission-light Mac apps — like
+[Command Reopen](https://commandreopen.com), which fixes Cmd+Tab for
+minimized windows. If this plugin saves you time, you can
+[buy me a coffee](https://buymeacoffee.com/kkuk).

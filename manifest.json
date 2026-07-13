@@ -4,7 +4,8 @@
   "version": "0.9.1",
   "minAppVersion": "1.5.0",
   "description": "Open your vault in a new terminal window, launch CLI tools, or run quick Git commands from Obsidian.",
-  "author": "ChenFeng",
+  "author": "chenfeng",
   "authorUrl": "https://github.com/Feng6611",
+  "fundingUrl": "https://buymeacoffee.com/kkuk",
   "isDesktopOnly": true
 }
