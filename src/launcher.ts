@@ -93,7 +93,7 @@ const buildMacLaunch = (
     const escapedPath = escapeDoubleQuotes(vaultPath);
     const command = `open ${openFlag} "${escapedApp}" "${escapedPath}"`;
     logger.log('macOS simple launch', { app, command, vaultPath });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   const escapedVaultPath = escapeDoubleQuotes(vaultPath);
@@ -105,7 +105,7 @@ const buildMacLaunch = (
   const { path, cleanup } = ensureTempScript(scriptLines.join('\n'));
   const command = `open ${openFlag} "${escapeDoubleQuotes(app)}" "${path}"`;
   logger.log('macOS script launch', { app, command, script: path, toolCommand });
-  return { command, cleanup };
+  return { command, cwd: vaultPath, cleanup };
 };
 
 const buildWindowsLaunch = (
@@ -138,7 +138,7 @@ const buildWindowsLaunch = (
     if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
       const command = `start "" cmd.exe /K "${wslCommand}"`;
       logger.log('Windows launch (cmd.exe + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
-      return { command };
+      return { command, cwd: vaultPath };
     }
 
     if (lowerApp === 'powershell' || lowerApp === 'powershell.exe') {
@@ -152,7 +152,7 @@ const buildWindowsLaunch = (
         vaultPath,
         wslVaultPath
       });
-      return { command: psCommand };
+      return { command: psCommand, cwd: vaultPath };
     }
 
     if (lowerApp === 'wt.exe' || lowerApp === 'wt') {
@@ -160,7 +160,7 @@ const buildWindowsLaunch = (
         ? `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}" ${toolCommand}`
         : `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}"`;
       logger.log('Windows launch (wt + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
-      return { command };
+      return { command, cwd: vaultPath };
     }
 
     const command = `start "" cmd.exe /K "${wslCommand}"`;
@@ -171,7 +171,7 @@ const buildWindowsLaunch = (
       vaultPath,
       wslVaultPath
     });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
@@ -179,7 +179,7 @@ const buildWindowsLaunch = (
       ? `start "" cmd.exe /K "${cdCommand}${tool}"`
       : `start "" cmd.exe /K "${cdCommand}"`;
     logger.log('Windows launch (cmd.exe)', { command, toolCommand, vaultPath });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   if (lowerApp === 'powershell' || lowerApp === 'powershell.exe') {
@@ -189,14 +189,14 @@ const buildWindowsLaunch = (
         "''"
       )}';"`;
       logger.log('Windows launch (powershell)', { command, toolCommand, vaultPath });
-      return { command };
+      return { command, cwd: vaultPath };
     }
     const command = `start "" powershell -NoExit -Command "Set-Location '${vaultPath.replace(
       /'/g,
       "''"
     )}'; ${toolCommand}"`;
     logger.log('Windows launch (powershell tool)', { command, toolCommand, vaultPath });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   if (lowerApp === 'wt.exe' || lowerApp === 'wt') {
@@ -204,21 +204,21 @@ const buildWindowsLaunch = (
       ? `start "" wt.exe new-tab cmd /K "${cdCommand}${tool}"`
       : `start "" wt.exe new-tab cmd /K "${cdCommand}"`;
     logger.log('Windows launch (wt)', { command, toolCommand, vaultPath });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   if (!toolCommand) {
     const command = `start "" "${app}"`;
     logger.log('Windows launch (generic simple)', { command, vaultPath });
-    return { command };
+    return { command, cwd: vaultPath };
   }
 
   const command = `start "" cmd.exe /K "${cdCommand}${tool}"`;
   logger.log('Windows launch (generic tool fallback)', { command, app, toolCommand, vaultPath });
-  return { command };
+  return { command, cwd: vaultPath };
 };
 
-const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchCommand | null => {
+const buildUnixLaunch = (terminalApp: string, vaultPath: string, toolCommand?: string): LaunchCommand | null => {
   const app = sanitizeTerminalApp(terminalApp);
   if (!app) {
     return null;
@@ -226,27 +226,27 @@ const buildUnixLaunch = (terminalApp: string, toolCommand?: string): LaunchComma
 
   if (!toolCommand) {
     const command = `${app}`;
-    logger.log('Unix launch (simple)', { command });
-    return { command };
+    logger.log('Unix launch (simple)', { command, vaultPath });
+    return { command, cwd: vaultPath };
   }
 
   const shellCommand = `cd \\\"$PWD\\\"; ${toolCommand}; exec \\\"$SHELL\\\"`;
 
   if (app.includes('gnome-terminal')) {
     const command = `${app} -- bash -lc "${shellCommand}"`;
-    logger.log('Unix launch (gnome-terminal)', { command, toolCommand });
-    return { command };
+    logger.log('Unix launch (gnome-terminal)', { command, toolCommand, vaultPath });
+    return { command, cwd: vaultPath };
   }
 
   if (app.includes('konsole')) {
     const command = `${app} -e bash -lc "${shellCommand}"`;
-    logger.log('Unix launch (konsole)', { command, toolCommand });
-    return { command };
+    logger.log('Unix launch (konsole)', { command, toolCommand, vaultPath });
+    return { command, cwd: vaultPath };
   }
 
   const command = `${app} -e bash -lc "${shellCommand}"`;
-  logger.log('Unix launch (generic tool)', { command, toolCommand });
-  return { command };
+  logger.log('Unix launch (generic tool)', { command, toolCommand, vaultPath });
+  return { command, cwd: vaultPath };
 };
 
 export const buildLaunchCommand = (
@@ -264,5 +264,5 @@ export const buildLaunchCommand = (
   if (Platform.isWin) {
     return buildWindowsLaunch(terminalApp, vaultPath, toolCommand, options?.useWslOnWindows);
   }
-  return buildUnixLaunch(terminalApp, toolCommand);
+  return buildUnixLaunch(terminalApp, vaultPath, toolCommand);
 };
