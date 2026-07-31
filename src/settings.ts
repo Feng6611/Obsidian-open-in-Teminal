@@ -14,6 +14,7 @@ export interface OpenInTerminalSettings {
   reuseExistingMacApp: boolean;
   enableClaude: boolean;
   enableCodex: boolean;
+  enableCopilot: boolean;
   enableCursor: boolean;
   enableGemini: boolean;
   enableOpencode: boolean;
@@ -70,6 +71,7 @@ export const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   reuseExistingMacApp: true,
   enableClaude: false,
   enableCodex: false,
+  enableCopilot: false,
   enableCursor: false,
   enableGemini: false,
   enableOpencode: false,
@@ -130,6 +132,7 @@ export const normalizeSettings = (stored: unknown): OpenInTerminalSettings => {
     ),
     enableClaude: readBoolean(source.enableClaude, DEFAULT_SETTINGS.enableClaude),
     enableCodex: readBoolean(source.enableCodex, DEFAULT_SETTINGS.enableCodex),
+    enableCopilot: readBoolean(source.enableCopilot, DEFAULT_SETTINGS.enableCopilot),
     enableCursor: readBoolean(source.enableCursor, DEFAULT_SETTINGS.enableCursor),
     enableGemini: readBoolean(source.enableGemini, DEFAULT_SETTINGS.enableGemini),
     enableOpencode: readBoolean(source.enableOpencode, DEFAULT_SETTINGS.enableOpencode),

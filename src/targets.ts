@@ -3,6 +3,7 @@ import type { OpenInTerminalSettings } from './settings';
 export type OptionalTargetSettingKey =
   | 'enableClaude'
   | 'enableCodex'
+  | 'enableCopilot'
   | 'enableCursor'
   | 'enableGemini'
   | 'enableOpencode'
@@ -47,6 +48,14 @@ export const optionalLaunchTargets: readonly OptionalLaunchTarget[] = [
     toolCommand: 'codex',
     settingKey: 'enableCodex',
     settingLabel: 'Codex cli'
+  },
+  {
+    id: 'open-copilot',
+    commandName: 'Open in GitHub Copilot',
+    action: 'terminal',
+    toolCommand: 'copilot',
+    settingKey: 'enableCopilot',
+    settingLabel: 'GitHub Copilot'
   },
   {
     id: 'open-cursor',
