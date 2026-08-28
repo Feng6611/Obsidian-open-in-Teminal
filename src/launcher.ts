@@ -119,7 +119,7 @@ const buildWindowsLaunch = (
     return null;
   }
 
-  const escapedVault = vaultPath.replace(/"/g, '"');
+  const escapedVault = vaultPath.replace(/"/g, '""');
   const cdCommand = `cd /d "${escapedVault}"`;
   const tool = toolCommand ? ` && ${toolCommand}` : '';
 
