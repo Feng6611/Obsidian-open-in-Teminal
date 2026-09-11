@@ -1,150 +1,84 @@
 import { App, Platform, Plugin, PluginSettingTab, Setting } from 'obsidian';
-
-import {
-  defaultTerminalApp,
-  getCurrentTerminalApp,
-  OpenInTerminalSettings,
-  setCurrentTerminalApp
-} from './settings';
+import { defaultTerminalApp, getCurrentTerminalApp, type OpenInTerminalSettings, setCurrentTerminalApp } from './settings';
 import { optionalLaunchTargets } from './targets';
+import { buildNotePrompt } from './note-context';
 
 type SettingsHost = Plugin & {
-  settings: OpenInTerminalSettings;
+  pluginSettings: OpenInTerminalSettings;
   saveSettings: () => Promise<void>;
 };
+// A structural definition keeps the legacy display fallback compatible with
+// Obsidian 1.5, while newer versions can index and render these same rows.
+type Definition = { name: string; desc?: string; render: (setting: Setting) => void };
 
 export class OpenInTerminalSettingTab extends PluginSettingTab {
   plugin: SettingsHost;
+  private preview?: Setting;
 
-  constructor(app: App, plugin: SettingsHost) {
-    super(app, plugin);
-    this.plugin = plugin;
+  constructor(app: App, plugin: SettingsHost) { super(app, plugin); this.plugin = plugin; }
+
+  private updatePreview() {
+    const settings = this.plugin.pluginSettings;
+    const note = this.app.workspace.getActiveFile()?.path;
+    this.preview?.setDesc(buildNotePrompt(settings, note) ?? (settings.enableNoteContext ? 'Open a note to preview its prompt.' : 'Note context is disabled.'));
+  }
+
+  getSettingDefinitions(): Definition[] {
+    const settings = this.plugin.pluginSettings;
+    const toggle = (name: string, desc: string, key: keyof Pick<OpenInTerminalSettings,
+      'openAtCurrentNoteFolder' | 'reuseExistingMacApp' | 'enableWslOnWindows' | 'enableNoteContext'>): Definition => ({
+      name, desc, render: row => { row.addToggle(control => control.setValue(settings[key]).onChange(async value => {
+        settings[key] = value;
+        await this.plugin.saveSettings();
+        this.updatePreview();
+      })); }
+    });
+    const definitions: Definition[] = [{
+      name: 'Terminal application',
+      desc: 'Enter an app name or executable path, without command-line arguments. Leave blank to use the default for this device.',
+      render: row => { row.addText(control => control.setPlaceholder(defaultTerminalApp()).setValue(getCurrentTerminalApp(settings.terminalApp)).onChange(async value => {
+        settings.terminalApp = setCurrentTerminalApp(settings.terminalApp,value);
+        await this.plugin.saveSettings();
+      })); }
+    }, toggle("Open at current note's folder", 'Use the active note folder; fall back to the vault root when no note is open.', 'openAtCurrentNoteFolder')];
+    if (Platform.isMacOS) definitions.push(toggle('Reuse existing terminal instance', 'Open a new window in the running app instead of a separate application instance.', 'reuseExistingMacApp'));
+    if (Platform.isWin) definitions.push(toggle('Use WSL for commands', 'Run CLI tools and Git inside WSL on Windows.', 'enableWslOnWindows'));
+    definitions.push(toggle('Include current note in prompt', 'Start an interactive CLI session with the current note path and your instructions. The CLI may begin responding immediately.', 'enableNoteContext'));
+    for (const [key,name] of [['promptPrefix','Prompt prefix'],['promptSuffix','Prompt suffix']] as const) {
+      definitions.push({name,desc:'Whitespace is preserved exactly.',render:row => {
+        row.addTextArea(control => control.setValue(settings[key]).onChange(async value => {
+          settings[key] = value;
+          await this.plugin.saveSettings();
+          this.updatePreview();
+        }));
+      }});
+    }
+    definitions.push({name:'Prompt preview',render:row => {this.preview=row;this.updatePreview();}});
+    definitions.push({name:'Default commit message',desc:'Used by Git: commit and push.',render:row => {
+      row.addText(control => control.setValue(settings.defaultCommitMessage).onChange(async value => {
+        settings.defaultCommitMessage=value.trim() || 'update';
+        await this.plugin.saveSettings();
+      }));
+    }});
+    for (const target of optionalLaunchTargets) {
+      definitions.push({name:`Enable ${target.settingLabel}`,desc:`Show “${target.commandName}” in the command palette.`,render:row => {
+        row.addToggle(control => control.setValue(settings[target.settingKey]).onChange(async value => {
+          settings[target.settingKey]=value;
+          await this.plugin.saveSettings();
+        }));
+      }});
+    }
+    return definitions;
   }
 
   display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
-    new Setting(containerEl).setName('Terminal integration').setHeading();
-
-    new Setting(containerEl)
-      .setName('Terminal application name')
-      .setDesc(
-        'Enter the command line app to launch, such as the default shell or a custom executable path.'
-      )
-      .addText((text) =>
-        text
-          .setPlaceholder(defaultTerminalApp())
-          .setValue(getCurrentTerminalApp(this.plugin.settings.terminalApp))
-          .onChange(async (value) => {
-            this.plugin.settings.terminalApp = setCurrentTerminalApp(
-              this.plugin.settings.terminalApp,
-              value
-            );
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Open at current note's folder")
-      .setDesc("Use the active note's folder as the Terminal working directory. Falls back to the vault root when no note is open.")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.openAtCurrentNoteFolder).onChange(async (value) => {
-          this.plugin.settings.openAtCurrentNoteFolder = value;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    if (Platform.isMacOS) {
-      new Setting(containerEl)
-        .setName('Reuse existing Terminal instance')
-        .setDesc('Use macOS open -a to reuse the configured Terminal app. Turn this off to launch a new instance.')
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.reuseExistingMacApp).onChange(async (value) => {
-            this.plugin.settings.reuseExistingMacApp = value;
-            await this.plugin.saveSettings();
-          })
-        );
-    }
-
-    if (Platform.isWin) {
-      new Setting(containerEl)
-        .setName('Use WSL for commands')
-        .setDesc('Run commands inside WSL on Windows.')
-        .addToggle((toggle) =>
-          toggle.setValue(this.plugin.settings.enableWslOnWindows).onChange(async (value) => {
-            this.plugin.settings.enableWslOnWindows = value;
-            await this.plugin.saveSettings();
-          })
-        );
-    }
-
-    new Setting(containerEl).setName('Git commands').setHeading();
-
-    new Setting(containerEl)
-      .setName('Default commit message')
-      .setDesc('Used when running the commit and push command.')
-      .addText((text) =>
-        text
-          .setPlaceholder('Update')
-          .setValue(this.plugin.settings.defaultCommitMessage)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultCommitMessage = value.trim() || 'update';
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Enable Git: commit and push')
-      .setDesc('Add a command to commit all changes and push to remote.')
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enableGitCommitPush).onChange(async (value) => {
-          this.plugin.settings.enableGitCommitPush = value;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Enable Git: pull')
-      .setDesc('Add a command to pull changes from remote.')
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.enableGitPull).onChange(async (value) => {
-          this.plugin.settings.enableGitPull = value;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl).setName('Command toggles').setHeading();
-
-    for (const target of optionalLaunchTargets) {
-      if (target.action !== 'terminal') {
-        continue;
-      }
-      this.addToggleSetting(
-        containerEl,
-        target.settingLabel,
-        () => this.plugin.settings[target.settingKey],
-        async (value) => {
-          this.plugin.settings[target.settingKey] = value;
-          await this.plugin.saveSettings();
-        }
-      );
+    this.containerEl.empty();
+    for (const definition of this.getSettingDefinitions()) {
+      const row = new Setting(this.containerEl).setName(definition.name);
+      if (definition.desc) row.setDesc(definition.desc);
+      definition.render(row);
     }
   }
 
-  private addToggleSetting(
-    containerEl: HTMLElement,
-    label: string,
-    getValue: () => boolean,
-    setValue: (value: boolean) => Promise<void>
-  ) {
-    new Setting(containerEl)
-      .setName(`Enable ${label}`)
-      .setDesc(`Add an 'Open in ${label}' command to the command palette.`)
-      .addToggle((toggle) =>
-        toggle.setValue(getValue()).onChange(async (value) => {
-          await setValue(value);
-        })
-      );
-  }
+  hide(): void { this.preview = undefined; }
 }

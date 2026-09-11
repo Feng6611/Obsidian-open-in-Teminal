@@ -11,6 +11,9 @@ type TerminalAppByPlatform = {
 export interface OpenInTerminalSettings {
   terminalApp: TerminalAppByPlatform;
   openAtCurrentNoteFolder: boolean;
+  enableNoteContext: boolean;
+  promptPrefix: string;
+  promptSuffix: string;
   reuseExistingMacApp: boolean;
   enableClaude: boolean;
   enableCodex: boolean;
@@ -68,6 +71,9 @@ const buildDefaultTerminalAppSetting = (): TerminalAppByPlatform => {
 export const DEFAULT_SETTINGS: OpenInTerminalSettings = {
   terminalApp: buildDefaultTerminalAppSetting(),
   openAtCurrentNoteFolder: false,
+  enableNoteContext: false,
+  promptPrefix: 'Read ',
+  promptSuffix: '. If there are todos, propose a plan to handle them one at a time.',
   reuseExistingMacApp: true,
   enableClaude: false,
   enableCodex: false,
@@ -121,6 +127,9 @@ const readBoolean = (value: unknown, fallback: boolean): boolean =>
 export const normalizeSettings = (stored: unknown): OpenInTerminalSettings => {
   const source = isRecord(stored) ? stored : {};
   return {
+    enableNoteContext: readBoolean(source.enableNoteContext, DEFAULT_SETTINGS.enableNoteContext),
+    promptPrefix: typeof source.promptPrefix === 'string' ? source.promptPrefix : DEFAULT_SETTINGS.promptPrefix,
+    promptSuffix: typeof source.promptSuffix === 'string' ? source.promptSuffix : DEFAULT_SETTINGS.promptSuffix,
     terminalApp: normalizeTerminalAppSetting(source.terminalApp, DEFAULT_SETTINGS.terminalApp),
     openAtCurrentNoteFolder: readBoolean(
       source.openAtCurrentNoteFolder,
@@ -157,7 +166,7 @@ export const getCurrentTerminalApp = (terminalApp: TerminalAppByPlatform): strin
   if (!platform) {
     return '';
   }
-  return terminalApp[platform] ?? '';
+  return terminalApp[platform]?.trim() || defaultTerminalApp();
 };
 
 export const setCurrentTerminalApp = (
