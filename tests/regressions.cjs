@@ -58,7 +58,7 @@ try {
     assert.equal(result.status,0,result.stderr);
     assert.equal(result.stderr,'');
     const actual=JSON.parse(result.stdout.trim());
-    assert.equal(fs.realpathSync(actual.cwd),fs.realpathSync(vault));
+    assert.deepEqual([fs.statSync(actual.cwd).dev,fs.statSync(actual.cwd).ino],[fs.statSync(vault).dev,fs.statSync(vault).ino]);
     assert.deepEqual(actual.args,values);
   });
   if (process.platform !== 'win32') test('macOS script preserves paths and aborts if cd fails', () => {
@@ -110,7 +110,7 @@ try {
           assert.equal(result.status,0,result.stderr);
           assert.equal(result.stderr,'');
           const actual=JSON.parse(result.stdout.trim());
-          assert.equal(fs.realpathSync(actual.cwd),fs.realpathSync(vault));
+          assert.deepEqual([fs.statSync(actual.cwd).dev,fs.statSync(actual.cwd).ino],[fs.statSync(vault).dev,fs.statSync(vault).ino]);
           assert.deepEqual(actual.args,values);
         }
       } finally { launch.cleanup(); }

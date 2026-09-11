@@ -1,10 +1,13 @@
 name: Check
 on:
   push:
-    branches: ['main', 'codex/**']
+    branches: ['main']
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     strategy:
