@@ -44,7 +44,7 @@ A blank or missing terminal setting uses the current platform default. Enter an 
 - **WSL** – supports standard drive mounts (`C:\Notes` → `/mnt/c/Notes`) and `\\wsl.localhost\Distribution\...` / `\\wsl$\Distribution\...` vaults. CLI and Git checks run in WSL. Custom drive mount layouts require a WSL UNC vault path. A Linux login Bash shell loads the distribution's CLI environment.
 - **Linux / BSD** – requires Bash. GNOME Terminal uses `-- bash -lc`; other terminals use `-e bash -lc`. Terminals with different argument conventions need a wrapper executable. Directory changes are checked before any tool runs.
 
-CLI tools must already be installed. Prompt context starts the tool's interactive mode using a positional prompt for Claude/Codex/Cursor, `-i` for Gemini/Copilot and `--prompt` for OpenCode. The CLI may begin responding immediately. The plugin does not enable auto-approval or bypass CLI permission checks.
+CLI tools must already be installed. Prompt context starts the tool's interactive mode using a positional prompt for Claude/Codex/Cursor, `--prompt-interactive` for Gemini, `--interactive` for Copilot and `--prompt` for OpenCode. The CLI may begin responding immediately. The plugin does not enable auto-approval or bypass CLI permission checks.
 
 ## Capabilities and privacy
 

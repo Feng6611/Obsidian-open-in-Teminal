@@ -9,8 +9,9 @@ export const buildNotePrompt = (settings: OpenInTerminalSettings, notePath?: str
 
 export const promptArguments = (tool: string, prompt?: string): string[] => {
   if (prompt === undefined) return [];
-  if (tool === 'gemini' || tool === 'copilot') return ['-i', prompt];
-  if (tool === 'opencode') return ['--prompt', prompt];
+  if (tool === 'gemini') return [`--prompt-interactive=${prompt}`];
+  if (tool === 'copilot') return [`--interactive=${prompt}`];
+  if (tool === 'opencode') return [`--prompt=${prompt}`];
   // End option parsing so user-entered prefixes cannot become CLI flags.
   return ['--', prompt];
 };

@@ -38,8 +38,9 @@ test('note context follows launch directory and preserves whitespace', () => {
   assert.equal(context.buildNotePrompt(value),undefined);
   assert.equal(context.buildNotePrompt({...value,enableNoteContext:false},'note.md'),undefined);
   for(const tool of ['claude','codex','agent']) assert.deepEqual(context.promptArguments(tool,'--help'),['--','--help']);
-  for(const tool of ['copilot','gemini']) assert.deepEqual(context.promptArguments(tool,'hello'),['-i','hello']);
-  assert.deepEqual(context.promptArguments('opencode','hello'),['--prompt','hello']);
+  assert.deepEqual(context.promptArguments('copilot','--help'),['--interactive=--help']);
+  assert.deepEqual(context.promptArguments('gemini','--help'),['--prompt-interactive=--help']);
+  assert.deepEqual(context.promptArguments('opencode','--help'),['--prompt=--help']);
 });
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-regression-'));
 try {
