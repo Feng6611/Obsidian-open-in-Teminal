@@ -1,6 +1,6 @@
 {
   "name": "obsidian-open-in-terminal",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Open your vault in a terminal, launch CLI tools with note context, or run Git commands.",
   "author": "ChenFeng",
   "scripts": {

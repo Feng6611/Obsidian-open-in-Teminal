@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+- Preserve Unicode quotation marks in Windows paths and CLI prompts by encoding PowerShell string data. This prevents smart quotes from being interpreted as script delimiters.
+- Add Windows regressions for smart quotes, low quotes and literal script-like prompt text.
+- Includes all 0.11.0 improvements: Copilot, note context, platform defaults, launch hardening and community review fixes.
+
 ## 0.11.0
 
 - Add optional GitHub Copilot commands and current-note prompt context for supported CLI tools, with prefix, suffix and preview settings.

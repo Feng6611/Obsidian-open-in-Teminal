@@ -44,7 +44,7 @@ test('note context follows launch directory and preserves whitespace', () => {
 });
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-regression-'));
 try {
-  const vault = path.join(root, process.platform === 'win32' ? 'My Vault & %PATH% !wow! $HOME \'quote\' 中文' : 'My Vault $(printf CHANGED) `printf BAD` "quote" \'single\' $HOME');
+  const vault = path.join(root, process.platform === 'win32' ? 'My Vault & %PATH% !wow! $HOME \'quote\' 中文 Alice’s' : 'My Vault $(printf CHANGED) `printf BAD` "quote" \'single\' $HOME');
   fs.mkdirSync(vault);
   const capture = path.join(root,'capture.cjs');
   fs.writeFileSync(capture,'console.log(JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}))');
@@ -93,15 +93,16 @@ try {
   });
   test('Windows launch keeps prompts out of nested command lines', () => {
     platform.isWin=true; platform.isMacOS=false; platform.isLinux=false;
-    const values=['Read "quoted" note $(echo BAD) & echo BAD %PATH% !x!', 'a\\b\\', 'line1\nline2', '中文'];
+    const values=['Read "quoted" note $(echo BAD) & echo BAD %PATH% !x!', 'a\\b\\', 'line1\nline2', '中文', 'Alice’s ‘quoted’ ‚low‛', "’; Write-Output INJECTED; #"];
     for(const app of ['powershell.exe','cmd.exe','wt.exe','tabby.exe']) {
       const launch=launcher.buildLaunchCommand(app,vault,{kind:'tool',executable:process.execPath,args:[capture,...values]});
       try {
         const outer=Buffer.from(launch.args.at(-1),'base64').toString('utf16le');
-        const match=outer.match(/-EncodedCommand[" ]+([A-Za-z0-9+/=]+)/);
+        const commandLine=Buffer.from(outer.match(/-ArgumentList \(\[Text.Encoding\]::UTF8.GetString\(\[Convert\]::FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
+        const match=commandLine.match(/-EncodedCommand[" ]+([A-Za-z0-9+/=]+)/);
         assert(match,outer);
         const bootstrap=Buffer.from(match[1],'base64').toString('utf16le');
-        const file=bootstrap.slice(3,-1).replace(/''/g,"'");
+        const file=Buffer.from(bootstrap.match(/FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
         assert.equal(fs.existsSync(file),true,bootstrap);
         assert(outer.length < 8191);
         if(process.platform === 'win32') {
@@ -124,8 +125,9 @@ try {
       const launch=launcher.buildLaunchCommand('powershell.exe',vault,{kind:'tool',executable:'codex',args:values});
       try {
         const outer=Buffer.from(launch.args.at(-1),'base64').toString('utf16le');
-        const bootstrap=Buffer.from(outer.match(/-EncodedCommand[" ]+([A-Za-z0-9+/=]+)/)[1],'base64').toString('utf16le');
-        const file=bootstrap.slice(3,-1).replace(/''/g,"'");
+        const commandLine=Buffer.from(outer.match(/-ArgumentList \(\[Text.Encoding\]::UTF8.GetString\(\[Convert\]::FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
+        const bootstrap=Buffer.from(commandLine.match(/-EncodedCommand[" ]+([A-Za-z0-9+/=]+)/)[1],'base64').toString('utf16le');
+        const file=Buffer.from(bootstrap.match(/FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
         const result=cp.spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',file],{cwd:root,encoding:'utf8',env:{...process.env,PATH:root+path.delimiter+process.env.PATH}});
         assert.equal(result.status,0,result.stderr);
         assert.deepEqual(JSON.parse(result.stdout.trim()).args,values);
