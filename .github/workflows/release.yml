@@ -1,50 +1,40 @@
-name: Build and Release
-
+name: Build and release
 on:
   push:
-    tags:
-      - '*'
-      - '*.*.*'
-
+    tags: ['*.*.*']
 permissions:
-  contents: write
-
+  contents: read
 jobs:
   release:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build plugin
-        run: npm run build
-
-      - name: Prepare release assets
-        id: prep
-        run: |
-          mkdir -p release
-          cp manifest.json main.js release/
-          if [ -f styles.css ]; then cp styles.css release/; fi
-          cd release
-          zip -r ../open-in-terminal.zip .
-          cd ..
-          FILES="manifest.json\nmain.js\nopen-in-terminal.zip"
-          if [ -f styles.css ]; then FILES="$FILES\nstyles.css"; fi
-          echo -e "files<<EOF\n$FILES\nEOF" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ steps.prep.outputs.files }}
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Prepare release notes
+        run: node scripts/release-notes.cjs > release-notes.md
+      - name: Attest release assets
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          fail_on_unmatched_files: true
+          files: |
+            main.js
+            manifest.json

@@ -1,268 +1,177 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
 import { Platform } from 'obsidian';
 
-import { logger } from './logger';
+export type LaunchAction =
+  | { kind: 'tool'; executable: string; args?: string[] }
+  | { kind: 'git'; action: 'commit-push' | 'pull'; message?: string };
 
 export type LaunchCommand = {
-  command: string;
-  cwd?: string;
+  executable: string;
+  args: string[];
+  cwd: string;
   cleanup?: () => void;
 };
+export type LaunchOptions = { useWslOnWindows?: boolean; reuseExistingMacApp?: boolean };
 
-export type LaunchOptions = {
-  useWslOnWindows?: boolean;
-  reuseExistingMacApp?: boolean;
-};
-
-const sanitizeTerminalApp = (value: string): string => value.trim();
-
-const escapeDoubleQuotes = (value: string): string => value.replace(/"/g, '\\"');
-
-const escapeForCmdQuotedString = (value: string): string => value.replace(/"/g, '""');
-
-const toWslPath = (windowsPath: string): string | null => {
-  const normalized = windowsPath.replace(/\\/g, '/');
-  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
-  if (!match) {
-    return null;
-  }
-  const drive = match[1].toLowerCase();
-  const rest = match[2];
-  return `/mnt/${drive}/${rest}`;
-};
+// Data is quoted for the shell that actually consumes it, never for the host OS.
+const quotePosix = (value: string): string => "'" + value.replace(/'/g, "'\\''") + "'";
+const quotePowerShell = (value: string): string => "'" + value.replace(/'/g, "''") + "'";
 
 export const getPlatformSummary = (): string => {
-  if (Platform.isDesktopApp) {
-    if (Platform.isMacOS) {
-      return 'desktop-macos';
-    }
-    if (Platform.isWin) {
-      return 'desktop-windows';
-    }
-    if (Platform.isLinux) {
-      return 'desktop-linux';
-    }
-    return 'desktop-unknown';
-  }
-  if (Platform.isMobileApp) {
-    if (Platform.isIosApp) {
-      return 'mobile-ios';
-    }
-    if (Platform.isAndroidApp) {
-      return 'mobile-android';
-    }
-    return 'mobile-unknown';
-  }
-  return 'unknown';
+  if (!Platform.isDesktopApp) return 'mobile';
+  return Platform.isMacOS ? 'desktop-macos' : Platform.isWin ? 'desktop-windows' : 'desktop-linux';
 };
 
-const ensureTempScript = (content: string): { path: string; cleanup: () => void } => {
+const actionCommands = (action: LaunchAction): string[][] => {
+  if (action.kind === 'tool') return [[action.executable, ...(action.args ?? [])]];
+  if (action.action === 'pull') return [['git', 'pull']];
+  return [['git', 'add', '.'], ['git', 'commit', '-m', action.message?.trim() || 'update'], ['git', 'push']];
+};
+
+const posixScript = (cwd: string, action?: LaunchAction): string => {
+  const lines = [`cd -- ${quotePosix(cwd)} || exit 1`];
+  if (action) lines.push(actionCommands(action).map(args => args.map(quotePosix).join(' ')).join(' && '));
+  lines.push('exec "${SHELL:-/bin/sh}"');
+  return lines.join('\n');
+};
+
+const tempScript = (content: string, filename = 'launch.command'): { path: string; cleanup: () => void } => {
   const dir = mkdtempSync(join(tmpdir(), 'open-in-terminal-'));
-  const filePath = join(dir, 'launch.command');
-  logger.log('Creating temp script', { dir, filePath });
-  writeFileSync(filePath, content, { mode: 0o755 });
-  const cleanup = () => {
-    try {
-      rmSync(dir, { recursive: true, force: true });
-      logger.log('Cleaned temp script', dir);
-    } catch (error) {
-      console.warn('[open-in-terminal] Failed to remove temp script', error);
-    }
+  const path = join(dir, filename);
+  try { writeFileSync(path, content, { mode: 0o700 }); }
+  catch (error) { rmSync(dir, {recursive:true, force:true}); throw error; }
+  return { path, cleanup: () => rmSync(dir, {recursive:true, force:true}) };
+};
+
+const buildMacLaunch = (app: string, cwd: string, action?: LaunchAction, options?: LaunchOptions): LaunchCommand => {
+  const args = [options?.reuseExistingMacApp === false ? '-na' : '-a', app];
+  if (!action) return {executable:'open', args:[...args,cwd], cwd};
+  const script = tempScript('#!/bin/bash -l\n' + posixScript(cwd, action) + '\n');
+  return {executable:'open',args:[...args,script.path],cwd,cleanup:script.cleanup};
+};
+
+// Start-Process accepts a command-line string, not an argv array. Apply Windows
+// argv quoting before embedding that string as a literal in the encoded script.
+const quoteWindowsArg = (value: string): string =>
+  '"' + value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, '$1$1') + '"';
+const encodePowerShell = (script: string): string => Buffer.from(script,'utf16le').toString('base64');
+
+// Bypass PowerShell 5.1's lossy native argv serialization. Known npm shims
+// are resolved to their package bin and run with node, without cmd.exe.
+const nativePowerShell = (executable: string, args: string[]): string => {
+  const packages: Record<string, string> = {
+    claude: '@anthropic-ai/claude-code', codex: '@openai/codex',
+    gemini: '@google/gemini-cli', opencode: 'opencode-ai', copilot: '@github/copilot'
   };
-  return { path: filePath, cleanup };
+  const packageName = packages[executable];
+  const lines = [
+    `$resolved = (Get-Command -Name ${quotePowerShell(executable)} -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source`,
+    `$arguments = ${quotePowerShell(args.map(quoteWindowsArg).join(' '))}`,
+    "if ([IO.Path]::GetExtension($resolved) -in @('.cmd', '.bat')) {"
+  ];
+  if (packageName) {
+    lines.push(
+      `$packageFile = Join-Path (Split-Path $resolved) ${quotePowerShell('node_modules/' + packageName + '/package.json')}`,
+      "if (!(Test-Path -LiteralPath $packageFile)) { throw 'Cannot resolve this CLI shim. Install a native CLI executable or use WSL.' }",
+      '$package = Get-Content -LiteralPath $packageFile -Raw | ConvertFrom-Json',
+      `$bin = if ($package.bin -is [string]) { $package.bin } else { $package.bin.${executable} }`,
+      "if (!$bin) { throw 'The CLI package has no matching executable.' }",
+      '$entry = [IO.Path]::GetFullPath((Join-Path (Split-Path $packageFile) $bin))',
+      // Windows file paths cannot contain quotes; double trailing slashes are
+      // irrelevant because the resolved entry is a file, not a directory.
+      '$arguments = \'"\' + $entry + \'" \' + $arguments',
+      "$localNode = Join-Path (Split-Path $resolved) 'node.exe'",
+      "$resolved = if (Test-Path -LiteralPath $localNode) { $localNode } else { (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source }"
+    );
+  } else {
+    lines.push("throw 'Batch command shims are unsupported. Use a native executable or WSL.'");
+  }
+  lines.push('}',
+    '$info = New-Object System.Diagnostics.ProcessStartInfo',
+    '$info.FileName = $resolved',
+    '$info.Arguments = $arguments',
+    '$info.WorkingDirectory = (Get-Location).Path',
+    '$info.UseShellExecute = $false',
+    '$process = [System.Diagnostics.Process]::Start($info)',
+    '$process.WaitForExit()',
+    '$toolExitCode = $process.ExitCode',
+    '$process.Dispose()',
+    'if ($toolExitCode -ne 0) { return }'
+  );
+  return lines.join('\n');
 };
 
-const buildMacLaunch = (
-  terminalApp: string,
-  vaultPath: string,
-  toolCommand?: string,
-  options?: LaunchOptions
-): LaunchCommand | null => {
-  const app = sanitizeTerminalApp(terminalApp);
-  if (!app) {
-    return null;
-  }
-
-  const openFlag = options?.reuseExistingMacApp === false ? '-na' : '-a';
-
-  if (!toolCommand) {
-    const escapedApp = escapeDoubleQuotes(app);
-    const escapedPath = escapeDoubleQuotes(vaultPath);
-    const command = `open ${openFlag} "${escapedApp}" "${escapedPath}"`;
-    logger.log('macOS simple launch', { app, command, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  const escapedVaultPath = escapeDoubleQuotes(vaultPath);
-  const scriptLines = ['#!/bin/bash', `cd "${escapedVaultPath}"`];
-  if (toolCommand) {
-    scriptLines.push(toolCommand);
-  }
-  scriptLines.push('exec "$SHELL"');
-  const { path, cleanup } = ensureTempScript(scriptLines.join('\n'));
-  const command = `open ${openFlag} "${escapeDoubleQuotes(app)}" "${path}"`;
-  logger.log('macOS script launch', { app, command, script: path, toolCommand });
-  return { command, cwd: vaultPath, cleanup };
+const powerShellScript = (cwd: string, action?: LaunchAction): string => {
+  const lines = [`$ErrorActionPreference = 'Stop'`, `Set-Location -LiteralPath ${quotePowerShell(cwd)}`];
+  if (action) for (const [executable, ...args] of actionCommands(action)) lines.push(nativePowerShell(executable,args));
+  return lines.join('\n');
 };
 
-const buildWindowsLaunch = (
-  terminalApp: string,
-  vaultPath: string,
-  toolCommand?: string,
-  useWslOnWindows?: boolean
-): LaunchCommand | null => {
-  const app = sanitizeTerminalApp(terminalApp);
-  if (!app) {
-    return null;
-  }
-
-  const escapedVault = vaultPath.replace(/"/g, '"');
-  const cdCommand = `cd /d "${escapedVault}"`;
-  const tool = toolCommand ? ` && ${toolCommand}` : '';
-
-  const lowerApp = app.toLowerCase();
-
-  if (useWslOnWindows) {
-    const wslVaultPath = toWslPath(vaultPath);
-    if (!wslVaultPath) {
-      logger.log('Windows WSL launch skipped due to unsupported path', { vaultPath });
-      return null;
-    }
-
-    const wslPrefix = `wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}"`;
-    const wslCommand = toolCommand ? `${wslPrefix} ${toolCommand}` : wslPrefix;
-
-    if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
-      const command = `start "" cmd.exe /K "${wslCommand}"`;
-      logger.log('Windows launch (cmd.exe + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
-      return { command, cwd: vaultPath };
-    }
-
-    if (lowerApp === 'powershell' || lowerApp === 'powershell.exe') {
-      const psWslPath = wslVaultPath.replace(/'/g, "''");
-      const psCommand = toolCommand
-        ? `start "" powershell -NoExit -Command "wsl.exe --cd '${psWslPath}' ${toolCommand}"`
-        : `start "" powershell -NoExit -Command "wsl.exe --cd '${psWslPath}'"`;
-      logger.log('Windows launch (powershell + WSL)', {
-        command: psCommand,
-        toolCommand,
-        vaultPath,
-        wslVaultPath
-      });
-      return { command: psCommand, cwd: vaultPath };
-    }
-
-    if (lowerApp === 'wt.exe' || lowerApp === 'wt') {
-      const command = toolCommand
-        ? `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}" ${toolCommand}`
-        : `start "" wt.exe new-tab wsl.exe --cd "${escapeForCmdQuotedString(wslVaultPath)}"`;
-      logger.log('Windows launch (wt + WSL)', { command, toolCommand, vaultPath, wslVaultPath });
-      return { command, cwd: vaultPath };
-    }
-
-    const command = `start "" cmd.exe /K "${wslCommand}"`;
-    logger.log('Windows launch (generic + WSL fallback)', {
-      command,
-      app,
-      toolCommand,
-      vaultPath,
-      wslVaultPath
-    });
-    return { command, cwd: vaultPath };
-  }
-
-  if (lowerApp === 'cmd.exe' || lowerApp === 'cmd') {
-    const command = toolCommand
-      ? `start "" cmd.exe /K "${cdCommand}${tool}"`
-      : `start "" cmd.exe /K "${cdCommand}"`;
-    logger.log('Windows launch (cmd.exe)', { command, toolCommand, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  if (lowerApp === 'powershell' || lowerApp === 'powershell.exe') {
-    if (!toolCommand) {
-      const command = `start "" powershell -NoExit -Command "Set-Location '${vaultPath.replace(
-        /'/g,
-        "''"
-      )}';"`;
-      logger.log('Windows launch (powershell)', { command, toolCommand, vaultPath });
-      return { command, cwd: vaultPath };
-    }
-    const command = `start "" powershell -NoExit -Command "Set-Location '${vaultPath.replace(
-      /'/g,
-      "''"
-    )}'; ${toolCommand}"`;
-    logger.log('Windows launch (powershell tool)', { command, toolCommand, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  if (lowerApp === 'wt.exe' || lowerApp === 'wt') {
-    const command = toolCommand
-      ? `start "" wt.exe new-tab cmd /K "${cdCommand}${tool}"`
-      : `start "" wt.exe new-tab cmd /K "${cdCommand}"`;
-    logger.log('Windows launch (wt)', { command, toolCommand, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  if (!toolCommand) {
-    const command = `start "" "${app}"`;
-    logger.log('Windows launch (generic simple)', { command, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  const command = `start "" cmd.exe /K "${cdCommand}${tool}"`;
-  logger.log('Windows launch (generic tool fallback)', { command, app, toolCommand, vaultPath });
-  return { command, cwd: vaultPath };
+const resolveWslPath = (cwd: string): {path: string; distro?: string} | null => {
+  const normalized = cwd.replace(/\\/g,'/');
+  const unc = normalized.match(/^\/\/wsl(?:\.localhost|\$)\/([^/]+)(\/.*)?$/i);
+  if (unc) return {distro:unc[1],path:unc[2] || '/'};
+  const drive = normalized.match(/^([a-z]):\/(.*)$/i);
+  if (drive) return {path:`/mnt/${drive[1].toLowerCase()}/${drive[2]}`};
+  return null;
 };
 
-const buildUnixLaunch = (terminalApp: string, vaultPath: string, toolCommand?: string): LaunchCommand | null => {
-  const app = sanitizeTerminalApp(terminalApp);
-  if (!app) {
-    return null;
+const buildWindowsLaunch = (app: string, cwd: string, action?: LaunchAction, options?: LaunchOptions): LaunchCommand | null => {
+  let script: string;
+  if (options?.useWslOnWindows) {
+    const wsl = resolveWslPath(cwd);
+    if (!wsl) return null;
+    // wsl.exe's --exec receives bash and its arguments directly. A login shell
+    // finds CLI tools installed only in the distribution's user environment.
+    const args = [...(wsl.distro ? ['--distribution',wsl.distro] : []), '--cd',wsl.path,'--exec','bash','-lc',posixScript(wsl.path,action)];
+    script = `$ErrorActionPreference = 'Stop'\n` + nativePowerShell('wsl.exe',args);
+  } else {
+    script = powerShellScript(cwd,action);
   }
-
-  if (!toolCommand) {
-    const command = `${app}`;
-    logger.log('Unix launch (simple)', { command, vaultPath });
-    return { command, cwd: vaultPath };
+  const file = tempScript('\uFEFF' + script, 'launch.ps1');
+  const encoded = encodePowerShell('& ' + quotePowerShell(file.path));
+  const shellArgs = ['-NoExit','-ExecutionPolicy','Bypass','-EncodedCommand',encoded];
+  const name = app.replace(/\\/g,'/').split('/').pop()?.toLowerCase();
+  let executable = app;
+  let args: string[];
+  if (name === 'powershell' || name === 'powershell.exe' || name === 'pwsh' || name === 'pwsh.exe') {
+    args = shellArgs;
+  } else if (name === 'wt' || name === 'wt.exe') {
+    args = ['new-tab','powershell.exe',...shellArgs];
+  } else if (name === 'tabby' || name === 'tabby.exe') {
+    args = ['run','powershell.exe',...shellArgs];
+  } else if (name === 'cmd' || name === 'cmd.exe') {
+    args = ['/d','/k',`powershell.exe -ExecutionPolicy Bypass -EncodedCommand ${encoded}`];
+  } else if (!action && !options?.useWslOnWindows) {
+    args = [];
+  } else {
+    executable = 'cmd.exe';
+    args = ['/d','/k',`powershell.exe -ExecutionPolicy Bypass -EncodedCommand ${encoded}`];
   }
-
-  const shellCommand = `cd \\\"$PWD\\\"; ${toolCommand}; exec \\\"$SHELL\\\"`;
-
-  if (app.includes('gnome-terminal')) {
-    const command = `${app} -- bash -lc "${shellCommand}"`;
-    logger.log('Unix launch (gnome-terminal)', { command, toolCommand, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  if (app.includes('konsole')) {
-    const command = `${app} -e bash -lc "${shellCommand}"`;
-    logger.log('Unix launch (konsole)', { command, toolCommand, vaultPath });
-    return { command, cwd: vaultPath };
-  }
-
-  const command = `${app} -e bash -lc "${shellCommand}"`;
-  logger.log('Unix launch (generic tool)', { command, toolCommand, vaultPath });
-  return { command, cwd: vaultPath };
+  const start = `$ErrorActionPreference = 'Stop'\nStart-Process -FilePath ${quotePowerShell(executable)}` +
+    (args.length ? ` -ArgumentList ${quotePowerShell(args.map(quoteWindowsArg).join(' '))}` : '') +
+    (options?.useWslOnWindows ? '' : ` -WorkingDirectory ${quotePowerShell(cwd)}`);
+  return {executable:'powershell.exe',args:['-NoProfile','-NonInteractive','-EncodedCommand',encodePowerShell(start)],cwd: options?.useWslOnWindows ? tmpdir() : cwd,cleanup:file.cleanup};
 };
 
-export const buildLaunchCommand = (
-  terminalApp: string,
-  vaultPath: string,
-  toolCommand?: string,
-  options?: LaunchOptions
-): LaunchCommand | null => {
-  if (!Platform.isDesktopApp) {
-    return null;
+export const buildLaunchCommand = (terminalApp: string, cwd: string, action?: LaunchAction, options?: LaunchOptions): LaunchCommand | null => {
+  const app = terminalApp.trim();
+  if (!Platform.isDesktopApp || !app) return null;
+  if (Platform.isMacOS) return buildMacLaunch(app,cwd,action,options);
+  if (Platform.isWin) return buildWindowsLaunch(app,cwd,action,options);
+  // Explicitly set the directory even for a terminal-only launch: terminal
+  // server processes may otherwise reuse an unrelated working directory.
+  const args = [app.includes('gnome-terminal') ? '--' : '-e','bash','-lc',posixScript(cwd,action)];
+  return {executable:app,args,cwd};
+};
+
+export const buildGitProbe = (cwd: string, useWsl: boolean): LaunchCommand | null => {
+  if (Platform.isWin && useWsl) {
+    const wsl = resolveWslPath(cwd);
+    if (!wsl) return null;
+    return {executable:'wsl.exe',args:[...(wsl.distro ? ['--distribution',wsl.distro] : []), '--cd',wsl.path,'--exec','git','rev-parse','--is-inside-work-tree'],cwd:tmpdir()};
   }
-  if (Platform.isMacOS) {
-    return buildMacLaunch(terminalApp, vaultPath, toolCommand, options);
-  }
-  if (Platform.isWin) {
-    return buildWindowsLaunch(terminalApp, vaultPath, toolCommand, options?.useWslOnWindows);
-  }
-  return buildUnixLaunch(terminalApp, vaultPath, toolCommand);
+  return {executable:'git',args:['rev-parse','--is-inside-work-tree'],cwd};
 };

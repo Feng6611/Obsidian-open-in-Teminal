@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const pkg = require('../package.json');
+const manifest = require('../manifest.json');
+const lock = require('../package-lock.json');
+const versions = require('../versions.json');
+assert.equal(pkg.version,manifest.version,'package/manifest version mismatch');
+assert.equal(lock.version,manifest.version,'lockfile version mismatch');
+assert.equal(lock.packages[''].version,manifest.version,'lockfile root version mismatch');
+assert.equal(versions[manifest.version],manifest.minAppVersion,'versions.json compatibility mismatch');
+if(process.env.RELEASE_TAG) assert.equal(process.env.RELEASE_TAG,manifest.version,'tag must match manifest version exactly');
+assert(!/obsidian/i.test(manifest.description),'description must not repeat Obsidian');
+const output=fs.readFileSync('main.js','utf8');
+assert(!/\b__(?:awaiter|generator|spreadArray)\b/.test(output),'legacy transpilation helpers found');
+assert(fs.readFileSync('CHANGELOG.md','utf8').includes(`## ${manifest.version}`),'release notes missing');
+console.log(`Release ${manifest.version}: versions, description, bundle and notes verified`);

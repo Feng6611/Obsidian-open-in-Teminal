@@ -1,10 +1,10 @@
 import { spawn } from 'child_process';
 import { join } from 'path';
 
-import { FileSystemAdapter, Notice, Platform, Plugin } from 'obsidian';
+import { FileSystemAdapter, Notice, Plugin } from 'obsidian';
 
-import { resolveCommandManager } from './command-manager';
-import { buildLaunchCommand, getPlatformSummary, type LaunchCommand } from './launcher';
+import { buildNotePrompt, promptArguments } from './note-context';
+import { buildGitProbe, buildLaunchCommand, getPlatformSummary, type LaunchAction, type LaunchCommand } from './launcher';
 import { logger } from './logger';
 import {
   DEFAULT_SETTINGS,
@@ -19,7 +19,7 @@ const TEMP_SCRIPT_CLEANUP_DELAY_MS = 30_000;
 
 export default class OpenInTerminalPlugin extends Plugin {
   private registeredCommandIds = new Set<string>();
-  settings: OpenInTerminalSettings = { ...DEFAULT_SETTINGS };
+  pluginSettings: OpenInTerminalSettings = { ...DEFAULT_SETTINGS };
 
   async onload() {
     await this.loadSettings();
@@ -28,70 +28,58 @@ export default class OpenInTerminalPlugin extends Plugin {
   }
 
   refreshCommands() {
-    const commandManager = resolveCommandManager(this.app);
-
-    if (commandManager) {
-      for (const fullId of this.registeredCommandIds) {
-        if (commandManager.findCommand(fullId)) {
-          commandManager.removeCommand(fullId);
-        }
-      }
-    }
-    this.registeredCommandIds.clear();
-
     for (const target of launchTargets) {
-      if (!isTargetEnabled(this.settings, target)) {
-        continue;
-      }
-
+      if (this.registeredCommandIds.has(target.id)) continue;
       this.addCommand({
         id: target.id,
         name: target.commandName,
-        callback: () => {
+        checkCallback: (checking) => {
+          if (!isTargetEnabled(this.pluginSettings, target)) return false;
+          if (checking) return true;
           if (target.action === 'git') {
-            if (target.gitAction === 'commit-push') {
-              void this.runGitCommitPush();
-              return;
-            }
-            void this.runGitPull();
-            return;
+            if (target.gitAction === 'commit-push') void this.runGitCommitPush();
+            else void this.runGitPull();
+          } else {
+            this.runLaunchCommand(() => {
+              const prompt = buildNotePrompt(this.pluginSettings, this.app.workspace.getActiveFile()?.path);
+              const action: LaunchAction | undefined = target.toolCommand
+                ? { kind: 'tool', executable: target.toolCommand, args: promptArguments(target.toolCommand, prompt) }
+                : undefined;
+              return this.composeLaunchCommand(action);
+            }, target.commandName);
           }
-
-          this.runLaunchCommand(
-            () => this.composeLaunchCommand(target.toolCommand),
-            target.commandName
-          );
+          return true;
         }
       });
-      this.registeredCommandIds.add(`${this.manifest.id}:${target.id}`);
+      this.registeredCommandIds.add(target.id);
     }
   }
 
-  private composeLaunchCommand(toolCommand?: string, useVaultRoot = false): LaunchCommand | null {
+  private composeLaunchCommand(action?: LaunchAction, useVaultRoot = false): LaunchCommand | null {
     const adapter = this.app.vault.adapter;
     if (!(adapter instanceof FileSystemAdapter)) {
       return null;
     }
     const vaultPath = adapter.getBasePath();
     const launchPath = useVaultRoot ? vaultPath : this.getLaunchPath(vaultPath);
-    const terminalApp = getCurrentTerminalApp(this.settings.terminalApp);
-    const launchCommand = buildLaunchCommand(terminalApp, launchPath, toolCommand, {
-      useWslOnWindows: this.settings.enableWslOnWindows,
-      reuseExistingMacApp: this.settings.reuseExistingMacApp
+    const terminalApp = getCurrentTerminalApp(this.pluginSettings.terminalApp);
+    const launchCommand = buildLaunchCommand(terminalApp, launchPath, action, {
+      useWslOnWindows: this.pluginSettings.enableWslOnWindows,
+      reuseExistingMacApp: this.pluginSettings.reuseExistingMacApp
     });
     logger.log('Compose launch command', {
       platform: getPlatformSummary(),
       terminalApp,
-      toolCommand,
+      action,
       vaultPath,
       launchPath,
       launchCommand
     });
-    return launchCommand ? { ...launchCommand, cwd: launchPath } : null;
+    return launchCommand;
   }
 
   private getLaunchPath(vaultPath: string): string {
-    if (!this.settings.openAtCurrentNoteFolder) {
+    if (!this.pluginSettings.openAtCurrentNoteFolder) {
       return vaultPath;
     }
 
@@ -101,7 +89,13 @@ export default class OpenInTerminalPlugin extends Plugin {
   }
 
   private runLaunchCommand(buildCommand: () => LaunchCommand | null, label: string) {
-    const launchCommand = buildCommand();
+    let launchCommand: LaunchCommand | null;
+    try { launchCommand = buildCommand(); }
+    catch (error) {
+      console.error('[open-in-terminal] Failed to prepare launch', error);
+      new Notice(`Failed to prepare ${label}. Check the developer console for details.`);
+      return;
+    }
     if (!launchCommand) {
       new Notice(
         `Unable to run ${label}. Check the open in terminal settings for the terminal application name.`
@@ -124,29 +118,34 @@ export default class OpenInTerminalPlugin extends Plugin {
     try {
       logger.log('Spawning command', {
         label,
-        command: launchCommand.command,
+        executable: launchCommand.executable,
         vaultPath,
         workingDirectory
       });
-      const child = spawn(launchCommand.command, {
+      const child = spawn(launchCommand.executable, launchCommand.args, {
         cwd: workingDirectory,
-        shell: true,
+        shell: false,
         detached: true,
         stdio: 'ignore'
       });
       child.on('error', (error) => {
-        console.error(`[open-in-terminal] Failed to run '${launchCommand.command}':`, error);
+        console.error(`[open-in-terminal] Failed to run '${launchCommand.executable}':`, error);
         new Notice(`Failed to run ${label}. Check the developer console for details.`);
+      });
+      child.on('exit', (code) => {
+        if (code !== null && code !== 0) {
+          new Notice(`Failed to run ${label} (exit ${code}). Check the terminal application setting.`);
+        }
       });
       child.unref();
       logger.log('Spawned command successfully', { label });
     } catch (error) {
-      console.error(`[open-in-terminal] Unexpected error for '${launchCommand.command}':`, error);
+      console.error(`[open-in-terminal] Unexpected error for '${launchCommand.executable}':`, error);
       new Notice(`Failed to run ${label}. Check the developer console for details.`);
     } finally {
       if (launchCommand.cleanup) {
         const cleanup = launchCommand.cleanup;
-        setTimeout(() => {
+        window.setTimeout(() => {
           try {
             cleanup();
           } catch (error) {
@@ -158,11 +157,11 @@ export default class OpenInTerminalPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = normalizeSettings(await this.loadData());
+    this.pluginSettings = normalizeSettings(await this.loadData());
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    await this.saveData(this.pluginSettings);
     this.refreshCommands();
   }
 
@@ -173,7 +172,7 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    const gitCommand = this.buildGitCommitPushCommand();
+    const gitCommand: LaunchAction = { kind: 'git', action: 'commit-push', message: this.pluginSettings.defaultCommitMessage };
     this.runLaunchCommand(() => this.composeLaunchCommand(gitCommand, true), 'Git: commit and push');
   }
 
@@ -184,7 +183,7 @@ export default class OpenInTerminalPlugin extends Plugin {
       return;
     }
 
-    this.runLaunchCommand(() => this.composeLaunchCommand('git pull', true), 'Git: pull');
+    this.runLaunchCommand(() => this.composeLaunchCommand({ kind: 'git', action: 'pull' }, true), 'Git: pull');
   }
 
   private async checkGitRepo(): Promise<boolean> {
@@ -194,9 +193,11 @@ export default class OpenInTerminalPlugin extends Plugin {
     }
     const vaultPath = adapter.getBasePath();
 
+    const probe = buildGitProbe(vaultPath, this.pluginSettings.enableWslOnWindows);
+    if (!probe) return false;
     return new Promise((resolve) => {
-      const child = spawn('git', ['rev-parse', '--is-inside-work-tree'], {
-        cwd: vaultPath,
+      const child = spawn(probe.executable, probe.args, {
+        cwd: probe.cwd,
         stdio: 'ignore'
       });
       child.on('close', (code) => resolve(code === 0));
@@ -204,25 +205,4 @@ export default class OpenInTerminalPlugin extends Plugin {
     });
   }
 
-  private buildGitCommitPushCommand(): string {
-    const normalized = this.settings.defaultCommitMessage.replace(/[\r\n]+/g, ' ').trim() || 'update';
-    const escaped = this.escapeCommitMessageForShell(normalized);
-    return `git add . && git commit -m "${escaped}" && git push`;
-  }
-
-  private escapeCommitMessageForShell(message: string): string {
-    if (Platform.isWin) {
-      return message
-        .replace(/\^/g, '^^')
-        .replace(/"/g, '""')
-        .replace(/%/g, '%%')
-        .replace(/!/g, '^^!');
-    }
-
-    return message
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\$/g, '\\$')
-      .replace(/`/g, '\\`');
-  }
 }
