@@ -17,7 +17,10 @@ export type LaunchOptions = { useWslOnWindows?: boolean; reuseExistingMacApp?: b
 
 // Data is quoted for the shell that actually consumes it, never for the host OS.
 const quotePosix = (value: string): string => "'" + value.replace(/'/g, "'\\''") + "'";
-const quotePowerShell = (value: string): string => "'" + value.replace(/'/g, "''") + "'";
+// PowerShell treats several Unicode quotation marks as string delimiters.
+// Encode data so none of those characters can become script syntax.
+const quotePowerShell = (value: string): string =>
+  `([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(value, 'utf8').toString('base64')}')))`;
 
 export const getPlatformSummary = (): string => {
   if (!Platform.isDesktopApp) return 'mobile';
