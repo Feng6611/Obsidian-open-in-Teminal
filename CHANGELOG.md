@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.2
+
+- Run native executable npm bins directly instead of passing them to Node.
+- Fix CMD command payload quoting, including the fallback terminal path.
+- Keep the hidden Windows PowerShell bootstrap non-detached so its script executes reliably.
+- Add regression coverage for native bins, CMD execution and plugin spawn options.
+
 ## 0.11.1
 
 - Preserve Unicode quotation marks in Windows paths and CLI prompts by encoding PowerShell string data. This prevents smart quotes from being interpreted as script delimiters.

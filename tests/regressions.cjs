@@ -6,9 +6,10 @@ const cp = require('node:child_process');
 const Module = require('node:module');
 const ts = require('typescript');
 const platform = { isDesktopApp: true, isMacOS: false, isWin: false, isLinux: true };
+const obsidianMock = { Platform: platform, Plugin: class {}, PluginSettingTab: class {}, FileSystemAdapter: class {}, Notice: class {} };
 const original = Module._load;
 Module._load = function(id, ...args) {
-  if (id === 'obsidian') return { Platform: platform };
+  if (id === 'obsidian') return obsidianMock;
   return original.call(this, id, ...args);
 };
 require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -16,11 +17,41 @@ require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
 }).outputText, file);
 const settings = require('../src/settings.ts');
 const launcher = require('../src/launcher.ts');
+const plugin = require('../src/main.ts').default;
 let failed = 0;
 function test(name, fn) {
   try { fn(); console.log(`PASS ${name}`); }
   catch(error) { failed++; console.error(`FAIL ${name}: ${error.message}`); }
 }
+function launchParts(launch) {
+  const outer = Buffer.from(launch.args.at(-1),'base64').toString('utf16le');
+  const commandLine = Buffer.from(outer.match(/-ArgumentList \(\[Text.Encoding\]::UTF8.GetString\(\[Convert\]::FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
+  const bootstrap = Buffer.from(commandLine.match(/-EncodedCommand[" ]+([A-Za-z0-9+/=]+)/)[1],'base64').toString('utf16le');
+  const file = Buffer.from(bootstrap.match(/FromBase64String\('([^']*)'\)/)[1],'base64').toString('utf8');
+  return {outer,commandLine,file};
+}
+function pluginSpawnOptions() {
+  const { FileSystemAdapter } = require('obsidian');
+  const instance = new plugin();
+  instance.app = {vault:{adapter:Object.assign(new FileSystemAdapter(),{getBasePath:()=>os.tmpdir()})}};
+  const savedSpawn = cp.spawn;
+  let options;
+  const child = {on:()=>child,unref:()=>{}};
+  try {
+    cp.spawn = (_executable,_args,value) => {options=value;return child;};
+    instance.executeShellCommand({executable:'powershell.exe',args:[],cwd:os.tmpdir()},'test');
+  } finally {cp.spawn=savedSpawn;}
+  return options;
+}
+test('plugin keeps the Windows bootstrap attached and hidden', () => {
+  const savedWin=platform.isWin;
+  try {
+    platform.isWin=true;
+    assert.deepEqual(pluginSpawnOptions(),{cwd:os.tmpdir(),shell:false,detached:false,windowsHide:true,stdio:'ignore'});
+    platform.isWin=false;
+    assert.equal(pluginSpawnOptions().detached,true);
+  } finally {platform.isWin=savedWin;}
+});
 test('missing platform uses default without losing synced settings', () => {
   const value = settings.normalizeSettings({terminalApp:{macos:'iTerm'}});
   assert.equal(settings.getCurrentTerminalApp(value.terminalApp), 'x-terminal-emulator');
@@ -94,6 +125,21 @@ try {
   test('Windows launch keeps prompts out of nested command lines', () => {
     platform.isWin=true; platform.isMacOS=false; platform.isLinux=false;
     const values=['Read "quoted" note $(echo BAD) & echo BAD %PATH% !x!', 'a\\b\\', 'line1\nline2', '中文', 'Alice’s ‘quoted’ ‚low‛', "’; Write-Output INJECTED; #"];
+    test('CMD and fallback serialize the command remainder without argv wrapping', () => {
+      for(const app of ['cmd','cmd.exe','C:\\Windows\\System32\\cmd.exe','unknown-terminal.exe']) {
+        const launch=launcher.buildLaunchCommand(app,vault,{kind:'tool',executable:process.execPath,args:[capture]});
+        try {
+          const {commandLine}=launchParts(launch);
+          assert.match(commandLine,/^\/d \/k powershell\.exe -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/=]+$/);
+          if(process.platform === 'win32') {
+            // Preserve the same raw remainder Start-Process sends to CMD.
+            const result=cp.spawnSync('cmd.exe',['/d','/c',commandLine.slice('/d /k '.length)],{cwd:root,encoding:'utf8',windowsVerbatimArguments:true,timeout:15000});
+            assert.equal(result.status,0,result.stderr);
+            assert.deepEqual(JSON.parse(result.stdout.trim()).args,[]);
+          }
+        } finally {launch.cleanup();}
+      }
+    });
     for(const app of ['powershell.exe','cmd.exe','wt.exe','tabby.exe']) {
       const launch=launcher.buildLaunchCommand(app,vault,{kind:'tool',executable:process.execPath,args:[capture,...values]});
       try {
@@ -117,6 +163,31 @@ try {
       } finally { launch.cleanup(); }
     }
     if(process.platform === 'win32') {
+      test('Windows bootstrap executes its script with actual plugin spawn options', () => {
+        const marker=path.join(root,'bootstrap-marker.txt');
+        const script=`[IO.File]::WriteAllText('${marker.replace(/'/g,"''")}','executed')`;
+        const args=['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')];
+        const options=pluginSpawnOptions();
+        const worker=`const cp=require('node:child_process'); const child=cp.spawn('powershell.exe',${JSON.stringify(args)},${JSON.stringify(options)});child.on('error',()=>process.exitCode=1);child.on('exit',code=>process.exitCode=code ?? 1);`;
+        const result=cp.spawnSync(process.execPath,['-e',worker],{encoding:'utf8',timeout:15000});
+        assert.equal(result.status,0,result.stderr);
+        assert.equal(fs.readFileSync(marker,'utf8'),'executed');
+      });
+      test('npm native exe bins run directly without Node', () => {
+        const packageDir=path.join(root,'node_modules','@anthropic-ai','claude-code');
+        fs.mkdirSync(path.join(packageDir,'bin'),{recursive:true});
+        fs.writeFileSync(path.join(packageDir,'package.json'),JSON.stringify({bin:{claude:'bin/claude.exe'}}));
+        // Node is a harmless, self-contained native executable fixture.
+        const nativeExe=process.execPath;
+        fs.copyFileSync(nativeExe,path.join(packageDir,'bin','claude.exe'));
+        fs.writeFileSync(path.join(root,'claude.cmd'),'@echo off\r\necho SHIM_MUST_NOT_EXECUTE\r\n');
+        const launch=launcher.buildLaunchCommand('powershell.exe',vault,{kind:'tool',executable:'claude',args:[capture,...values]});
+        try {
+          const result=cp.spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',launchParts(launch).file],{cwd:root,encoding:'utf8',env:{...process.env,PATH:root+path.delimiter+process.env.PATH}});
+          assert.equal(result.status,0,result.stderr);
+          assert.deepEqual(JSON.parse(result.stdout.trim()).args,values);
+        } finally {launch.cleanup();}
+      });
       const packageDir=path.join(root,'node_modules','@openai','codex');
       fs.mkdirSync(packageDir,{recursive:true});
       fs.writeFileSync(path.join(packageDir,'package.json'),JSON.stringify({bin:{codex:'cli.cjs'}}));

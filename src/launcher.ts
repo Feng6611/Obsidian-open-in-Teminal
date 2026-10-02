@@ -62,7 +62,8 @@ const quoteWindowsArg = (value: string): string =>
 const encodePowerShell = (script: string): string => Buffer.from(script,'utf16le').toString('base64');
 
 // Bypass PowerShell 5.1's lossy native argv serialization. Known npm shims
-// are resolved to their package bin and run with node, without cmd.exe.
+// are resolved to their package bin; native executables run directly and
+// JavaScript entries run with node, without cmd.exe.
 const nativePowerShell = (executable: string, args: string[]): string => {
   const packages: Record<string, string> = {
     claude: '@anthropic-ai/claude-code', codex: '@openai/codex',
@@ -82,11 +83,15 @@ const nativePowerShell = (executable: string, args: string[]): string => {
       `$bin = if ($package.bin -is [string]) { $package.bin } else { $package.bin.${executable} }`,
       "if (!$bin) { throw 'The CLI package has no matching executable.' }",
       '$entry = [IO.Path]::GetFullPath((Join-Path (Split-Path $packageFile) $bin))',
+      "if ([IO.Path]::GetExtension($entry) -eq '.exe') {",
+      '$resolved = $entry',
+      '} else {',
       // Windows file paths cannot contain quotes; double trailing slashes are
       // irrelevant because the resolved entry is a file, not a directory.
       '$arguments = \'"\' + $entry + \'" \' + $arguments',
       "$localNode = Join-Path (Split-Path $resolved) 'node.exe'",
-      "$resolved = if (Test-Path -LiteralPath $localNode) { $localNode } else { (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source }"
+      "$resolved = if (Test-Path -LiteralPath $localNode) { $localNode } else { (Get-Command node.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source }",
+      '}'
     );
   } else {
     lines.push("throw 'Batch command shims are unsupported. Use a native executable or WSL.'");
@@ -153,8 +158,13 @@ const buildWindowsLaunch = (app: string, cwd: string, action?: LaunchAction, opt
     executable = 'cmd.exe';
     args = ['/d','/k',`powershell.exe -ExecutionPolicy Bypass -EncodedCommand ${encoded}`];
   }
+  const executableName = executable.replace(/\\/g,'/').split('/').pop()?.toLowerCase();
+  const isCmd = executableName === 'cmd' || executableName === 'cmd.exe';
+  // CMD consumes the remainder after /k as shell source, not one argv value.
+  // This branch contains only fixed flags and Base64; user data stays encoded.
+  const argumentLine = isCmd ? args.join(' ') : args.map(quoteWindowsArg).join(' ');
   const start = `$ErrorActionPreference = 'Stop'\nStart-Process -FilePath ${quotePowerShell(executable)}` +
-    (args.length ? ` -ArgumentList ${quotePowerShell(args.map(quoteWindowsArg).join(' '))}` : '') +
+    (args.length ? ` -ArgumentList ${quotePowerShell(argumentLine)}` : '') +
     (options?.useWslOnWindows ? '' : ` -WorkingDirectory ${quotePowerShell(cwd)}`);
   return {executable:'powershell.exe',args:['-NoProfile','-NonInteractive','-EncodedCommand',encodePowerShell(start)],cwd: options?.useWslOnWindows ? tmpdir() : cwd,cleanup:file.cleanup};
 };

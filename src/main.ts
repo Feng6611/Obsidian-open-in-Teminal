@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { join } from 'path';
 
-import { FileSystemAdapter, Notice, Plugin } from 'obsidian';
+import { FileSystemAdapter, Notice, Platform, Plugin } from 'obsidian';
 
 import { buildNotePrompt, promptArguments } from './note-context';
 import { buildGitProbe, buildLaunchCommand, getPlatformSummary, type LaunchAction, type LaunchCommand } from './launcher';
@@ -125,7 +125,9 @@ export default class OpenInTerminalPlugin extends Plugin {
       const child = spawn(launchCommand.executable, launchCommand.args, {
         cwd: workingDirectory,
         shell: false,
-        detached: true,
+        // A detached Windows PowerShell can exit 0 without executing its script.
+        detached: !Platform.isWin,
+        windowsHide: true,
         stdio: 'ignore'
       });
       child.on('error', (error) => {
