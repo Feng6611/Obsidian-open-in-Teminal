@@ -132,7 +132,8 @@ try {
           const {commandLine}=launchParts(launch);
           assert.match(commandLine,/^\/d \/k powershell\.exe -ExecutionPolicy Bypass -EncodedCommand [A-Za-z0-9+/=]+$/);
           if(process.platform === 'win32') {
-            const result=cp.spawnSync('cmd.exe',['/d','/c',commandLine.slice('/d /k '.length)],{cwd:root,encoding:'utf8'});
+            // Preserve the same raw remainder Start-Process sends to CMD.
+            const result=cp.spawnSync('cmd.exe',['/d','/c',commandLine.slice('/d /k '.length)],{cwd:root,encoding:'utf8',windowsVerbatimArguments:true,timeout:15000});
             assert.equal(result.status,0,result.stderr);
             assert.deepEqual(JSON.parse(result.stdout.trim()).args,[]);
           }
