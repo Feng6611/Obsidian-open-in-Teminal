@@ -1,9 +1,9 @@
 # Open in Terminal
 
-Open your Obsidian vault in a terminal — or start Claude Code, Codex, Gemini CLI and other coding agents inside it — straight from the command palette.
+Open your Obsidian vault in a terminal, or launch Claude Code, Codex, Gemini CLI, and other coding agents inside it, directly from the command palette.
 
 <p>
-  <a href="https://community.obsidian.md/plugins/open-in-terminal"><img alt="Downloads" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&query=%24%5B%22open-in-terminal%22%5D.downloads&label=downloads&logo=obsidian&logoColor=white&color=7c3aed&style=flat-square"></a>
+  <a href="https://community.obsidian.md/plugins/open-in-terminal"><img alt="Downloads" src="https://img.shields.io/badge/downloads-37k%2B-7c3aed?logo=obsidian&logoColor=white&style=flat-square"></a>
   <a href="https://github.com/Feng6611/Obsidian-open-in-Teminal/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Feng6611/Obsidian-open-in-Teminal?label=release&color=7c3aed&style=flat-square"></a>
   <a href="https://github.com/Feng6611/Obsidian-open-in-Teminal/releases"><img alt="Last updated" src="https://img.shields.io/github/release-date/Feng6611/Obsidian-open-in-Teminal?label=updated&color=7c3aed&style=flat-square"></a>
 </p>
@@ -14,15 +14,15 @@ Open your Obsidian vault in a terminal — or start Claude Code, Codex, Gemini C
 
 ## Features
 
-- **Open the vault in your terminal** — one command opens your terminal at the vault root, or at the current note's folder if you prefer.
-- **Start a coding agent in your vault** — Claude Code, Codex CLI, GitHub Copilot, Cursor CLI, Gemini CLI and OpenCode each get their own command. Turn on only the ones you use.
-- **Hand the agent your current note** — optionally start the agent with the note's path in its prompt, wrapped in your own prefix and suffix.
-- **Git in one command** — `Git: commit and push` and `Git: pull`, always run from the vault root.
-- **Works on macOS, Windows and Linux** — with sensible defaults per platform, and settings stored per platform so a synced vault works on every machine.
+- **Open the vault in your terminal** — Run a single command to open your terminal at the vault root or at the folder of your active note.
+- **Launch coding agents in your vault** — Dedicated commands for Claude Code, Codex CLI, GitHub Copilot, Cursor CLI, Gemini CLI, and OpenCode. Enable only the agents you use.
+- **Pass the active note to your agent** — Optionally include the current note path in the agent prompt with customizable prefix and suffix text.
+- **One-command Git operations** — Run `Git: commit and push` and `Git: pull` directly from the vault root.
+- **Cross-platform support** — Sensible defaults for macOS, Windows, and Linux, with per-platform settings storage so synced vaults work across machines.
 
-## Install
+## Installation
 
-In Obsidian, open **Settings → Community plugins → Browse**, search for **Open in Terminal**, then install and enable it. Or open the [plugin page](https://community.obsidian.md/plugins/open-in-terminal) and click **Add to Obsidian**.
+In Obsidian, go to **Settings → Community plugins → Browse**, search for **Open in Terminal**, and click **Install**, then **Enable**. You can also install it from the [plugin page](https://community.obsidian.md/plugins/open-in-terminal) by clicking **Add to Obsidian**.
 
 ## Commands
 
@@ -38,32 +38,32 @@ In Obsidian, open **Settings → Community plugins → Browse**, search for **Op
 | **Git: commit and push** | Runs `git add . && git commit -m "<default message>" && git push` |
 | **Git: pull** | Runs `git pull` |
 
-Everything except **Open in terminal** is off until you enable it in settings. The CLI tools themselves must already be installed.
+Except for **Open in terminal**, all commands remain disabled until enabled in settings. The corresponding CLI tools must be installed on your system.
 
 ## Settings
 
-- **Terminal application** — the terminal to launch, such as `Terminal` or `iTerm` on macOS, `powershell` or `cmd.exe` on Windows, `gnome-terminal` or `alacritty` on Linux. Leave it blank for the platform default. Enter an app name or executable path, without arguments.
-- **Open at current note's folder** — use the active note's folder as the working directory; falls back to the vault root when no note is open.
-- **Include current note in prompt** — off by default. When on, coding agents start with your prefix, the note's path and your suffix as one prompt, with a live preview in settings. Plain terminal and Git commands never receive it.
-- **Reuse existing terminal instance** (macOS) — reuse the running terminal app; turn it off to launch a new instance.
-- **Coding agents** — a switch for each agent command.
-- **Git commands** — a default commit message (`update`) and a switch for each Git command.
-- **Use WSL for commands** (Windows) — run everything inside WSL.
+- **Terminal application** — Enter the executable name or path, such as `Terminal` or `iTerm` on macOS, `powershell` or `cmd.exe` on Windows, or `gnome-terminal` or `alacritty` on Linux. Leave blank to use the platform default. Do not include command-line arguments.
+- **Open at current note's folder** — Uses the active note's directory as the working directory; falls back to the vault root when no note is open.
+- **Include current note in prompt** — Disabled by default. When enabled, coding agents launch with your prefix, the note path, and your suffix combined into a single prompt. Settings provides a live preview. Terminal and Git commands do not receive this prompt.
+- **Reuse existing terminal instance** (macOS) — Reuses the running terminal app; disable this option to launch a new instance.
+- **Coding agents** — Toggle switches for individual agent commands.
+- **Git commands** — Configure a default commit message (defaults to `update`) and toggle switches for Git commands.
+- **Use WSL for commands** (Windows) — Runs all configured commands inside Windows Subsystem for Linux (WSL).
 
 ## Platform notes
 
-- **macOS** — Terminal and iTerm are fully supported. Coding agents start through a temporary `.command` script in a login shell, so other terminals need to be able to open `.command` files.
-- **Windows** — supports CMD, Windows PowerShell, PowerShell 7, Windows Terminal and Tabby, with or without WSL.
-- **Linux** — requires Bash. GNOME Terminal and terminals that accept `-e` work out of the box.
+- **macOS** — Terminal and iTerm are fully supported. Coding agents launch using a temporary `.command` script in a login shell; other terminal emulators must support opening `.command` files.
+- **Windows** — Supports Command Prompt, Windows PowerShell, PowerShell 7, Windows Terminal, and Tabby, with or without WSL.
+- **Linux** — Requires Bash. GNOME Terminal and terminals accepting the `-e` flag work out of the box.
 
-The plugin never turns on auto-approval or skips a CLI's own permission checks. When it passes your note as a prompt, the agent may start working on it right away.
+The plugin never bypasses CLI tool confirmation prompts or permission checks. When passing a note path into an agent prompt, the agent may begin processing that note immediately upon launch.
 
 ## Privacy
 
-This is a desktop-only plugin that launches programs on your computer: it starts your terminal and runs the commands you choose. On macOS and Windows it writes a temporary launch script outside the vault and deletes it after launch; on Windows that script runs with a process-scoped execution policy, without changing your system settings. `Git: commit and push` stages everything under the vault root before committing.
+This desktop-only plugin launches programs on your local machine: it opens your terminal emulator and executes the commands you configure. On macOS and Windows, it writes a temporary script outside the vault and deletes it after launch; on Windows, that script runs under a process-scoped execution policy without changing system-wide execution policies. `Git: commit and push` stages all files under the vault root before committing.
 
-The plugin itself sends nothing over the network. Whatever coding agent you launch decides what it reads and sends.
+The plugin does not transmit data over the network. Network activity depends entirely on the commands and coding agents you choose to run.
 
 ## About the author
 
-I'm [chenfeng](https://github.com/Feng6611). I also made [File Ignore](https://github.com/Feng6611/Obsidian-File-Ignore), which keeps folders like `node_modules` out of Obsidian's index, and I build small, permission-light Mac apps — like [Command Reopen](https://commandreopen.com), which fixes Cmd+Tab for minimized windows. If this plugin saves you time, you can [buy me a coffee](https://buymeacoffee.com/kkuk).
+Built by [chenfeng](https://github.com/Feng6611). I also created [File Ignore](https://github.com/Feng6611/Obsidian-File-Ignore) to keep non-note directories like `node_modules` out of Obsidian's index, and [Command Reopen](https://commandreopen.com), a focused Mac utility that restores minimized windows with Cmd+Tab. If you find this plugin helpful, you can [buy me a coffee](https://buymeacoffee.com/kkuk).
