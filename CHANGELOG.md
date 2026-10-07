@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.3
+
+- Keep the note-folder working directory inside the vault; escape attempts fall back to the vault root.
+- Validate the configured terminal executable (reject empty values and control characters) without a hard allowlist.
+- Add a README "Permissions and disclosures" section for shell execution and temp-script filesystem use.
+- Correct changelog wording: temporary launch scripts are used on macOS and Windows.
+
 ## 0.11.2
 
 - Run native executable npm bins directly instead of passing them to Node.
@@ -22,4 +29,4 @@
 - Update official lint rules, remove legacy async transpilation helpers and fix timer compatibility.
 - Check builds on Linux, macOS and Windows; attach provenance attestations to release assets. Publish only the files Obsidian installs.
 
-The plugin still requires desktop process execution and uses temporary scripts on macOS. Those capabilities are disclosed in the README and may remain visible in automated review.
+The plugin still requires desktop process execution and uses temporary launch scripts on macOS and Windows. Those capabilities are disclosed in the README and may remain visible in automated review.

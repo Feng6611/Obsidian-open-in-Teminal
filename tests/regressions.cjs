@@ -61,6 +61,19 @@ test('legacy string and explicit blank normalize correctly', () => {
   assert.equal(settings.getCurrentTerminalApp(settings.normalizeSettings({terminalApp:' konsole '}).terminalApp),'konsole');
   assert.equal(settings.getCurrentTerminalApp({linux:'  '}),'x-terminal-emulator');
 });
+test('terminal executable rejects empty and control characters', () => {
+  assert.equal(settings.isValidTerminalExecutable(''), false);
+  assert.equal(settings.isValidTerminalExecutable('   '), false);
+  assert.equal(settings.isValidTerminalExecutable('kon\nsole'), false);
+  assert.equal(settings.isValidTerminalExecutable('bad\0name'), false);
+  assert.equal(settings.isValidTerminalExecutable('ghostty'), true);
+  assert.equal(settings.isValidTerminalExecutable('/usr/bin/kitty'), true);
+  assert.equal(settings.isValidTerminalExecutable('  konsole  '), true);
+  assert.equal(launcher.buildLaunchCommand(''), null);
+  assert.equal(launcher.buildLaunchCommand('term\ninal'), null);
+  assert.equal(settings.normalizeSettings({terminalApp:{linux:'ok\nbad'}}).terminalApp.linux, '');
+  assert.equal(settings.setCurrentTerminalApp({}, 'xte\rm').linux, '');
+});
 const context = require('../src/note-context.ts');
 test('note context follows launch directory and preserves whitespace', () => {
   const value = {...settings.DEFAULT_SETTINGS, enableNoteContext:true, promptPrefix:'Read (', promptSuffix:')\nThen plan.'};
@@ -77,6 +90,15 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-regression-'));
 try {
   const vault = path.join(root, process.platform === 'win32' ? 'My Vault & %PATH% !wow! $HOME \'quote\' 中文 Alice’s' : 'My Vault $(printf CHANGED) `printf BAD` "quote" \'single\' $HOME');
   fs.mkdirSync(vault);
+  test('note-folder cwd stays inside the vault', () => {
+    const { resolveLaunchPath } = require('../src/paths.ts');
+    assert.equal(resolveLaunchPath(vault, false, 'Notes'), path.resolve(vault));
+    assert.equal(resolveLaunchPath(vault, true, null), path.resolve(vault));
+    assert.equal(resolveLaunchPath(vault, true, 'Notes/Project'), path.resolve(vault, 'Notes/Project'));
+    assert.equal(resolveLaunchPath(vault, true, '../escape'), path.resolve(vault));
+    assert.equal(resolveLaunchPath(vault, true, '/tmp'), path.resolve(vault));
+    assert.equal(resolveLaunchPath(vault, true, 'Notes/../../escape'), path.resolve(vault));
+  });
   const capture = path.join(root,'capture.cjs');
   fs.writeFileSync(capture,'console.log(JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}))');
   const terminal = path.join(root,'gnome-terminal');

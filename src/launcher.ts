@@ -3,6 +3,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { Platform } from 'obsidian';
 
+import { isValidTerminalExecutable } from './settings';
+
 export type LaunchAction =
   | { kind: 'tool'; executable: string; args?: string[] }
   | { kind: 'git'; action: 'commit-push' | 'pull'; message?: string };
@@ -171,7 +173,7 @@ const buildWindowsLaunch = (app: string, cwd: string, action?: LaunchAction, opt
 
 export const buildLaunchCommand = (terminalApp: string, cwd: string, action?: LaunchAction, options?: LaunchOptions): LaunchCommand | null => {
   const app = terminalApp.trim();
-  if (!Platform.isDesktopApp || !app) return null;
+  if (!Platform.isDesktopApp || !isValidTerminalExecutable(app)) return null;
   if (Platform.isMacOS) return buildMacLaunch(app,cwd,action,options);
   if (Platform.isWin) return buildWindowsLaunch(app,cwd,action,options);
   // Explicitly set the directory even for a terminal-only launch: terminal

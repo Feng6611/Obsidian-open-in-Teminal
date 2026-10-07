@@ -27,6 +27,22 @@ export interface OpenInTerminalSettings {
   defaultCommitMessage: string;
 }
 
+
+/** Reject empty names and control characters (including newlines); allow custom paths. */
+export const isValidTerminalExecutable = (value: string): boolean => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  for (let i = 0; i < trimmed.length; i++) {
+    const code = trimmed.charCodeAt(i);
+    if (code < 32 || code === 127) {
+      return false;
+    }
+  }
+  return true;
+};
+
 export const defaultTerminalApp = (): string => {
   if (!Platform.isDesktopApp) {
     return '';
@@ -101,19 +117,23 @@ const normalizeTerminalAppSetting = (
     if (!platform) {
       return { ...fallback };
     }
-    return { [platform]: value.trim() };
+    const trimmed = value.trim();
+    return { [platform]: isValidTerminalExecutable(trimmed) ? trimmed : '' };
   }
 
   if (isRecord(value)) {
     const next: TerminalAppByPlatform = {};
     if (typeof value.win === 'string') {
-      next.win = value.win.trim();
+      const trimmed = value.win.trim();
+      next.win = isValidTerminalExecutable(trimmed) ? trimmed : '';
     }
     if (typeof value.macos === 'string') {
-      next.macos = value.macos.trim();
+      const trimmed = value.macos.trim();
+      next.macos = isValidTerminalExecutable(trimmed) ? trimmed : '';
     }
     if (typeof value.linux === 'string') {
-      next.linux = value.linux.trim();
+      const trimmed = value.linux.trim();
+      next.linux = isValidTerminalExecutable(trimmed) ? trimmed : '';
     }
     return next;
   }
@@ -177,8 +197,9 @@ export const setCurrentTerminalApp = (
   if (!platform) {
     return { ...terminalApp };
   }
+  const trimmed = value.trim();
   return {
     ...terminalApp,
-    [platform]: value.trim()
+    [platform]: isValidTerminalExecutable(trimmed) ? trimmed : ''
   };
 };

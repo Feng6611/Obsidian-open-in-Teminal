@@ -58,6 +58,33 @@ Except for **Open in terminal**, all commands remain disabled until enabled in s
 
 The plugin never bypasses CLI tool confirmation prompts or permission checks. When passing a note path into an agent prompt, the agent may begin processing that note immediately upon launch.
 
+## Permissions and disclosures
+
+This plugin is `isDesktopOnly: true` and needs two desktop capabilities that automated review may flag. Both are required for the product to work; they are scoped as follows.
+
+### Shell execution (`child_process`)
+
+Commands are started with Node `spawn` and **`shell: false`**. The executable is one of:
+
+- the terminal application name or path you configure in settings (validated to reject empty values and control characters; not a fixed allowlist, so custom terminals keep working);
+- a fixed CLI agent command such as `claude`, `codex`, `copilot`, `agent`, `gemini`, or `opencode`;
+- a `git` probe (`git rev-parse`) used only to detect whether the vault is a Git repository.
+
+The working directory is the vault root, or — when enabled — the folder of the active note **after** resolving the path and confirming it still lies inside the vault. Paths that would escape the vault fall back to the vault root.
+
+### Direct filesystem access (`fs`)
+
+On macOS and Windows the plugin writes a short-lived launch script (`.command` / `.ps1`, mode `0700`) under a fresh directory in the OS temp folder, then deletes that directory after launch (or on failure). This is outside the vault because the system terminal APIs need a real script path; the Obsidian Vault API cannot substitute for it.
+
+The plugin does **not**:
+
+- read or write vault note contents via `fs`;
+- walk your home directory or other arbitrary paths;
+- make network requests of its own (any network activity comes only from the terminal or CLI tools you choose to run);
+- put note body text into launch scripts (only an optional note **path** may be passed into an agent prompt).
+
+See also [Privacy](#privacy) below, and Obsidian’s [Developer policies — Disclosures](https://github.com/obsidianmd/obsidian-developer-docs/blob/31946e5a/en/Developer%20policies.md) for vault-external file access.
+
 ## Privacy
 
 This desktop-only plugin launches programs on your local machine: it opens your terminal emulator and executes the commands you configure. On macOS and Windows, it writes a temporary script outside the vault and deletes it after launch; on Windows, that script runs under a process-scoped execution policy without changing system-wide execution policies. `Git: commit and push` stages all files under the vault root before committing.

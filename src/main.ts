@@ -1,6 +1,4 @@
 import { spawn } from 'child_process';
-import { join } from 'path';
-
 import { FileSystemAdapter, Notice, Platform, Plugin } from 'obsidian';
 
 import { buildNotePrompt, promptArguments } from './note-context';
@@ -13,9 +11,11 @@ import {
   type OpenInTerminalSettings
 } from './settings';
 import { OpenInTerminalSettingTab } from './settings-tab';
+import { resolveLaunchPath } from './paths';
 import { isTargetEnabled, launchTargets } from './targets';
 
 const TEMP_SCRIPT_CLEANUP_DELAY_MS = 30_000;
+
 
 export default class OpenInTerminalPlugin extends Plugin {
   private registeredCommandIds = new Set<string>();
@@ -79,13 +79,12 @@ export default class OpenInTerminalPlugin extends Plugin {
   }
 
   private getLaunchPath(vaultPath: string): string {
-    if (!this.pluginSettings.openAtCurrentNoteFolder) {
-      return vaultPath;
-    }
-
     const activeFile = this.app.workspace.getActiveFile();
-    const folderPath = activeFile?.parent?.path;
-    return folderPath ? join(vaultPath, folderPath) : vaultPath;
+    return resolveLaunchPath(
+      vaultPath,
+      this.pluginSettings.openAtCurrentNoteFolder,
+      activeFile?.parent?.path
+    );
   }
 
   private runLaunchCommand(buildCommand: () => LaunchCommand | null, label: string) {
