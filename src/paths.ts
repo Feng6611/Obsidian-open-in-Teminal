@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from 'path';
+import { isAbsolute, relative, resolve, sep } from 'path';
 
 /** Resolve a note-folder cwd and fall back to the vault root if it escapes the vault. */
 export const resolveLaunchPath = (
@@ -15,7 +15,7 @@ export const resolveLaunchPath = (
   if (!rel || rel === '') {
     return vaultRoot;
   }
-  if (rel.startsWith('..') || isAbsolute(rel)) {
+  if ((rel === '..' || rel.startsWith(`..${sep}`)) || isAbsolute(rel)) {
     return vaultRoot;
   }
   return candidate;

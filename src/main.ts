@@ -197,12 +197,19 @@ export default class OpenInTerminalPlugin extends Plugin {
     const probe = buildGitProbe(vaultPath, this.pluginSettings.enableWslOnWindows);
     if (!probe) return false;
     return new Promise((resolve) => {
-      const child = spawn(probe.executable, probe.args, {
-        cwd: probe.cwd,
-        stdio: 'ignore'
-      });
-      child.on('close', (code) => resolve(code === 0));
-      child.on('error', () => resolve(false));
+      try {
+        const child = spawn(probe.executable, probe.args, {
+          cwd: probe.cwd,
+          shell: false,
+          windowsHide: true,
+          timeout: 10_000,
+          stdio: 'ignore'
+        });
+        child.on('close', (code) => resolve(code === 0));
+        child.on('error', () => resolve(false));
+      } catch {
+        resolve(false);
+      }
     });
   }
 

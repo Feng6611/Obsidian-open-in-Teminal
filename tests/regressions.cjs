@@ -95,6 +95,9 @@ try {
     assert.equal(resolveLaunchPath(vault, false, 'Notes'), path.resolve(vault));
     assert.equal(resolveLaunchPath(vault, true, null), path.resolve(vault));
     assert.equal(resolveLaunchPath(vault, true, 'Notes/Project'), path.resolve(vault, 'Notes/Project'));
+    assert.equal(resolveLaunchPath(vault, true, '..archive'), path.resolve(vault, '..archive'));
+    assert.equal(resolveLaunchPath(vault, true, '..archive/Notes'), path.resolve(vault, '..archive/Notes'));
+    assert.equal(resolveLaunchPath(vault, true, '.'), path.resolve(vault));
     assert.equal(resolveLaunchPath(vault, true, '../escape'), path.resolve(vault));
     assert.equal(resolveLaunchPath(vault, true, '/tmp'), path.resolve(vault));
     assert.equal(resolveLaunchPath(vault, true, 'Notes/../../escape'), path.resolve(vault));
@@ -116,6 +119,10 @@ try {
   });
   if (process.platform !== 'win32') test('macOS script preserves paths and aborts if cd fails', () => {
     platform.isMacOS=true; platform.isLinux=false;
+    for (const reuse of [undefined, true, false]) {
+      const launch=launcher.buildLaunchCommand('Ghostty',vault,undefined,{reuseExistingMacApp:reuse});
+      assert.deepEqual(launch.args,[reuse===false?'-na':'-a','Ghostty',vault]);
+    }
     const action={kind:'tool',executable:process.execPath,args:[capture]};
     for(const cwd of [vault,path.join(root,'missing')]) {
       const launch=launcher.buildLaunchCommand('Terminal',cwd,action);
@@ -125,7 +132,7 @@ try {
         const result=cp.spawnSync('/bin/bash',[script],{cwd:root,env:{...process.env,SHELL:'/usr/bin/true'},encoding:'utf8'});
         if(cwd===vault) { assert.equal(result.status,0,result.stderr); assert.equal(fs.realpathSync(JSON.parse(result.stdout).cwd),fs.realpathSync(vault)); }
         else { assert.notEqual(result.status,0); assert.equal(result.stdout,''); }
-      } finally { launch.cleanup(); }
+      } finally { const file=launch.args.at(-1); launch.cleanup(); assert.equal(fs.existsSync(file),false); }
     }
     platform.isMacOS=false; platform.isLinux=true;
   });
@@ -226,6 +233,25 @@ try {
         assert.deepEqual(JSON.parse(result.stdout.trim()).args,values);
       } finally {launch.cleanup();}
     }
+    test('WSL final command line leaves option tokens bare (#21)', () => {
+      for (const cwd of ['C:\\My Vault\\中文', '\\\\wsl.localhost\\Ubuntu\\home\\user\\My Vault']) {
+        for (const app of ['cmd.exe', 'wt.exe', 'powershell.exe', 'tabby.exe']) {
+          const launch=launcher.buildLaunchCommand(app,cwd,{kind:'tool',executable:'claude',args:['Read "note"\n--help']},{useWslOnWindows:true});
+          try {
+            const script=fs.readFileSync(launchParts(launch).file,'utf8');
+            const encoded=script.match(/\$arguments = .*FromBase64String\('([^']*)'\)/)[1];
+            const args=Buffer.from(encoded,'base64').toString('utf8');
+            const expected=cwd.startsWith('C:') ? '--cd "/mnt/c/My Vault/中文" --exec bash -lc "' : '--distribution Ubuntu --cd "/home/user/My Vault" --exec bash -lc "';
+            assert(args.startsWith(expected),args);
+            assert(!args.includes('"--cd"'),args);
+            assert(!args.includes('"--exec"'),args);
+            assert(args.includes('Read \\"note\\"'),args);
+            assert(args.endsWith('"'),args);
+          } finally { launch.cleanup(); }
+        }
+      }
+      assert.equal(launcher.buildLaunchCommand('wt.exe','relative/path',undefined,{useWslOnWindows:true}),null);
+    });
     const probe=launcher.buildGitProbe('\\\\wsl.localhost\\Ubuntu\\home\\user\\My Vault',true);
     assert.deepEqual(probe.args,['--distribution','Ubuntu','--cd','/home/user/My Vault','--exec','git','rev-parse','--is-inside-work-tree']);
     const drive=launcher.buildGitProbe('C:\\My Vault',true);

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-open-in-terminal",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Open your vault in a terminal, launch CLI tools with note context, or run Git commands.",
   "author": "ChenFeng",
   "scripts": {
@@ -8,7 +8,9 @@
     "build": "node scripts/build.cjs",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/regressions.cjs",
+    "test": "node tests/regressions.cjs && node tests/plugin.cjs && node tests/release.cjs",
+    "release:check": "npm run check",
+    "release:verify": "node scripts/verify-release.cjs --public",
     "check": "npm run lint && npm run typecheck && npm test && npm run build && node scripts/check-release.cjs"
   },
   "keywords": [

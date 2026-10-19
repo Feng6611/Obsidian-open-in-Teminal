@@ -61,6 +61,10 @@ const buildMacLaunch = (app: string, cwd: string, action?: LaunchAction, options
 // argv quoting before embedding that string as a literal in the encoded script.
 const quoteWindowsArg = (value: string): string =>
   '"' + value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, '$1$1') + '"';
+// wsl.exe treats quoted option tokens as Linux commands (#21). Preserve bare
+// tokens; values containing whitespace/quotes still need Windows argv escaping.
+const quoteNativeArg = (value: string): string =>
+  !value || /[\s"]/.test(value) ? quoteWindowsArg(value) : value;
 const encodePowerShell = (script: string): string => Buffer.from(script,'utf16le').toString('base64');
 
 // Bypass PowerShell 5.1's lossy native argv serialization. Known npm shims
@@ -74,7 +78,7 @@ const nativePowerShell = (executable: string, args: string[]): string => {
   const packageName = packages[executable];
   const lines = [
     `$resolved = (Get-Command -Name ${quotePowerShell(executable)} -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source`,
-    `$arguments = ${quotePowerShell(args.map(quoteWindowsArg).join(' '))}`,
+    `$arguments = ${quotePowerShell(args.map(quoteNativeArg).join(' '))}`,
     "if ([IO.Path]::GetExtension($resolved) -in @('.cmd', '.bat')) {"
   ];
   if (packageName) {

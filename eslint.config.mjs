@@ -1,6 +1,7 @@
+import { defineConfig } from 'eslint/config';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 
-export default [
+export default defineConfig([
   { ignores: ['node_modules/**', 'main.js', 'main.js.map', 'tests/**', 'scripts/**', 'rollup.config.js', 'eslint.config.mjs'] },
   ...obsidianmd.configs.recommended,
   {
@@ -14,4 +15,4 @@ export default [
       }]
     }
   }
-];
+]);

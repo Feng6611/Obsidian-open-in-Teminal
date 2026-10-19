@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.4
+
+- Fix WSL launches failing with `--cd: command not found` by keeping option tokens unquoted.
+- Allow note folders whose names begin with two dots, such as `..archive`.
+- Handle Git detection failures and limit the check to ten seconds.
+- Expand release checks for command toggles, settings compatibility, temporary-script cleanup, plugin bundle loading and release notes.
+- Require Linux, macOS and Windows checks before publishing; verify release assets before and after publication.
+
 ## 0.11.3
 
 - Keep the note-folder working directory inside the vault; escape attempts fall back to the vault root.

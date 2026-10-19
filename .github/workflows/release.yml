@@ -5,7 +5,24 @@ on:
 permissions:
   contents: read
 jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run release:check
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
   release:
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,6 +39,11 @@ jobs:
       - run: npm run check
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+      - name: Refuse to overwrite a published release
+        run: node scripts/verify-release.cjs --before-upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
       - name: Prepare release notes
         run: node scripts/release-notes.cjs > release-notes.md
       - name: Attest release assets
@@ -30,11 +52,28 @@ jobs:
           subject-path: |
             main.js
             manifest.json
-      - name: Publish release
+      - name: Upload draft release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
+          prerelease: false
           body_path: release-notes.md
           fail_on_unmatched_files: true
           files: |
             main.js
             manifest.json
+      - name: Verify draft assets
+        run: node scripts/verify-release.cjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Publish verified release
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Verify public installation URLs
+        run: npm run release:verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
