@@ -78,6 +78,22 @@ export class OpenInTerminalSettingTab extends PluginSettingTab {
       if (definition.desc) row.setDesc(definition.desc);
       definition.render(row);
     }
+
+    // Support links at the bottom (Star + Buy Me a Coffee)
+    const support = new Setting(this.containerEl)
+      .setName('Support')
+      .setDesc('If you find this plugin helpful, a star helps others find it — and a coffee keeps updates coming.')
+      .addButton(button => button
+        .setButtonText('⭐ Star on GitHub')
+        .onClick(() => {
+          window.open('https://github.com/Feng6611/Obsidian-open-in-Teminal', '_blank');
+        }))
+      .addButton(button => button
+        .setButtonText('Buy me a coffee')
+        .onClick(() => {
+          window.open('https://buymeacoffee.com/kkuk', '_blank');
+        }));
+    support.controlEl.addClass('oit-support-button-container');
   }
 
   hide(): void { this.preview = undefined; }

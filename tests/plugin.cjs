@@ -75,15 +75,16 @@ async function main() {
     assert.equal(names.includes('Reuse existing terminal instance'),state==='macos');
     let rows=0;
     obsidian.Setting=class {
-      constructor(){ rows++; }
+      constructor(){ rows++; this.controlEl={addClass(){}}; }
       setName(){return this;} setDesc(){return this;}
       addToggle(fn){fn(this);return this;} addText(fn){fn(this);return this;} addTextArea(fn){fn(this);return this;}
+      addButton(fn){fn(this);return this;} setButtonText(){return this;} onClick(){return this;}
       setValue(){return this;} setPlaceholder(){return this;} onChange(){return this;}
     };
     let emptied=false;
     tab.containerEl={empty:()=>{emptied=true;}};
     tab.display();
-    assert(emptied);assert.equal(rows,definitions.length);
+    assert(emptied);assert.equal(rows,definitions.length + 1,'Support row renders after settings');
     tab.hide();assert.equal(tab.preview,undefined);
   }
   console.log('PASS note/Git directory routing and legacy settings rendering on all platforms');
